@@ -11,6 +11,8 @@ def get_calcslive_commands():
         "CalcsLive_Connect",
         "CalcsLive_Dashboard",
         "CalcsLive_ExtractParams",
+        "CalcsLive_SyncToCalcsLive",
+        "CalcsLive_PullFromCalcsLive",
         "CalcsLive_Status"
     ]
 
