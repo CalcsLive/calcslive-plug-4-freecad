@@ -8,6 +8,25 @@ This module is imported by InitGui.py and commands are registered here.
 import FreeCAD
 import FreeCADGui
 import webbrowser
+import sys
+import os
+import urllib.request
+import urllib.parse
+import urllib.error
+import json
+
+# Add workbench path to Python path for core module imports
+workbench_path = os.path.dirname(__file__)
+if workbench_path not in sys.path:
+    sys.path.append(workbench_path)
+
+# Global imports for core modules
+try:
+    from core.UnitMapper import UnitMapper
+    from core.ParameterMapper import create_parameter_mapper
+    FreeCAD.Console.PrintMessage("CalcsLive: Core modules imported successfully\n")
+except ImportError as e:
+    FreeCAD.Console.PrintError(f"CalcsLive: Failed to import core modules: {e}\n")
 
 
 # Command classes (proven working patterns)
@@ -145,8 +164,7 @@ class CalcsLiveExtractParams:
 
             FreeCAD.Console.PrintMessage(f"CalcsLive: Extracting parameters from {doc.Name}\n")
 
-            # Import the unit mapper
-            from core.UnitMapper import UnitMapper
+            # UnitMapper already imported globally
 
             # Extract parameters from all objects
             parameters = []
@@ -161,7 +179,7 @@ class CalcsLiveExtractParams:
                     if hasattr(prop, 'Value') and hasattr(prop, 'Unit'):
                         # Extract unit symbol from FreeCAD Unit object
                         freecad_unit = self.extract_unit_symbol(prop.Unit)
-                        calcslive_unit = UnitMapper.freecad_to_calcslive(freecad_unit)
+                        calcslive_unit = UnitMapper.freecad_to_calcslive_direct(freecad_unit)
 
                         param_info = {
                             'object': obj.Name,
@@ -229,42 +247,19 @@ class CalcsLiveExtractParams:
 
     def generate_symbol(self, prop_name: str, obj_name: str) -> str:
         """
-        Generate CalcsLive-compatible symbol from FreeCAD property name
+        Generate object-based descriptive symbol for FreeCAD parameters
 
         Args:
             prop_name: FreeCAD property name (e.g., 'Radius', 'Height')
-            obj_name: FreeCAD object name (e.g., 'Cylinder001')
+            obj_name: FreeCAD object name (e.g., 'Cylinder', 'Box001')
 
         Returns:
-            CalcsLive symbol (e.g., 'r', 'h', 'L')
+            Descriptive symbol (e.g., 'Cylinder_Radius', 'Box001_Height')
         """
-        # Standard parameter name mappings
-        symbol_mappings = {
-            'Radius': 'r',
-            'Height': 'h',
-            'Length': 'L',
-            'Width': 'w',
-            'Diameter': 'd',
-            'Thickness': 't',
-            'Angle': 'θ',
-            'Mass': 'm',
-            'Volume': 'V',
-            'Area': 'A'
-        }
-
-        # Try exact match first
-        if prop_name in symbol_mappings:
-            return symbol_mappings[prop_name]
-
-        # Try case-insensitive match
-        for key, symbol in symbol_mappings.items():
-            if prop_name.lower() == key.lower():
-                return symbol
-
-        # Generate symbol from property name
-        # Remove common prefixes/suffixes and use first letter
-        clean_name = prop_name.replace('Constraint', '').replace('Datum', '').strip()
-        return clean_name[0].lower() if clean_name else prop_name[0].lower()
+        # Create descriptive object-based symbol
+        # Format: ObjectName_PropertyName
+        # Examples: Cylinder_Radius, Box001_Height, Sketch_Length
+        return f"{obj_name}_{prop_name}"
 
 
 class CalcsLiveSyncToCalcsLive:
@@ -313,10 +308,7 @@ class CalcsLiveSyncToCalcsLive:
 
     def Activated(self):
         try:
-            import json
-            import urllib.request
-            import urllib.parse
-            from core.UnitMapper import UnitMapper
+            # urllib and json already imported globally
 
             doc = FreeCAD.ActiveDocument
             if not doc:
@@ -344,7 +336,7 @@ class CalcsLiveSyncToCalcsLive:
                 self.handle_sync_failure()
 
         except Exception as e:
-            FreeCAD.Console.PrintError(f"CalcsLive sync failed: {e}\n")
+            FreeCAD.Console.PrintError(f"[CalcsLiveTools]CalcsLive sync failed: {e}\n")
 
     def extract_and_map_parameters(self, doc):
         """Extract parameters from FreeCAD model with unit mapping"""
@@ -356,7 +348,7 @@ class CalcsLiveSyncToCalcsLive:
 
                 if hasattr(prop, 'Value') and hasattr(prop, 'Unit'):
                     freecad_unit = self.extract_unit_symbol(prop.Unit)
-                    calcslive_unit = UnitMapper.freecad_to_calcslive(freecad_unit)
+                    calcslive_unit = UnitMapper.freecad_to_calcslive_direct(freecad_unit)
 
                     param_info = {
                         'object': obj.Name,
@@ -371,46 +363,42 @@ class CalcsLiveSyncToCalcsLive:
         return parameters
 
     def generate_symbol(self, prop_name, obj_name):
-        """Generate CalcsLive symbol (reuse logic from ExtractParams)"""
-        symbol_mappings = {
-            'Radius': 'r',
-            'Height': 'h',
-            'Length': 'L',
-            'Width': 'w',
-            'Diameter': 'd',
-            'Thickness': 't',
-            'Angle': 'θ',
-            'Mass': 'm',
-            'Volume': 'V',
-            'Area': 'A'
-        }
-
-        if prop_name in symbol_mappings:
-            return symbol_mappings[prop_name]
-
-        for key, symbol in symbol_mappings.items():
-            if prop_name.lower() == key.lower():
-                return symbol
-
-        clean_name = prop_name.replace('Constraint', '').replace('Datum', '').strip()
-        return clean_name[0].lower() if clean_name else prop_name[0].lower()
+        """Generate object-based descriptive symbol (matching ExtractParams logic)"""
+        # Create descriptive object-based symbol
+        # Format: ObjectName_PropertyName
+        # Examples: Cylinder_Radius, Box001_Height, Sketch_Length
+        return f"{obj_name}_{prop_name}"
 
     def prepare_api_data(self, doc, parameters):
-        """Prepare data for n8n calculate API"""
-        # Convert parameters to n8n API format
-        inputs = {}
-        for param in parameters:
-            inputs[param['symbol']] = {
-                'value': param['value'],
-                'unit': param['calcslive_unit']
-            }
+        """Prepare data for n8n calculate API using parameter mapping"""
+        # ParameterMapper already imported globally
 
-        # Use demo article ID for MVP
-        article_id = "demo-cylinder-volume"
+        # Create parameter mapper for current model
+        model_path = doc.FileName if hasattr(doc, 'FileName') else None
+        mapper = create_parameter_mapper(model_path)
+
+        # Get CalcsLive inputs using mapping configuration
+        inputs = mapper.get_calcslive_inputs(parameters)
+
+        if not inputs:
+            FreeCAD.Console.PrintError("No parameter mappings configured or no matching parameters found\n")
+            FreeCAD.Console.PrintMessage("Available FreeCAD parameters:\n")
+            for param in parameters:
+                FreeCAD.Console.PrintMessage(f"  - {param['symbol']}\n")
+            FreeCAD.Console.PrintMessage("\nPlease configure parameter mapping first\n")
+            return None
+
+        # Get article ID from mapping configuration
+        article_id = mapper.mapping_config.get("article_id", "")
+        if not article_id:
+            FreeCAD.Console.PrintError("No CalcsLive article ID configured\n")
+            return None
+
+        FreeCAD.Console.PrintMessage(f"\nParameter Mapping Summary:\n{mapper.get_mapping_summary()}\n\n")
 
         api_data = {
             'articleId': article_id,
-            'apiKey': 'your-api-key-here',  # TODO: Get from config
+            'apiKey': 'n8n_f26596f2e42fe6f89d285ceca528e29895302ac6dcdddc1da8b9c3a821e665f1',  # Real API key
             'inputs': inputs,
             'outputs': {
                 'V': {'unit': 'mm³'}  # Request volume result in mm³
@@ -512,9 +500,7 @@ class CalcsLivePullFromCalcsLive:
 
     def Activated(self):
         try:
-            import json
-            import urllib.request
-            from core.UnitMapper import UnitMapper
+            # urllib and json already imported globally
 
             doc = FreeCAD.ActiveDocument
             if not doc:
@@ -568,7 +554,7 @@ class CalcsLivePullFromCalcsLive:
     def update_freecad_model(self, doc, results):
         """Update FreeCAD model with calculation results"""
         try:
-            from core.UnitMapper import UnitMapper
+            # UnitMapper already imported globally
 
             updated_objects = []
             created_properties = []
@@ -587,8 +573,11 @@ class CalcsLivePullFromCalcsLive:
             # Add calculation results as custom properties
             for symbol, result in results.items():
                 calcslive_unit = result['unit']
-                freecad_unit = UnitMapper.calcslive_to_freecad(calcslive_unit)
-                value = result['value']
+                calcslive_value = result['value']
+
+                # Convert CalcsLive value and unit to FreeCAD internal units
+                converted_value, freecad_unit = UnitMapper.calcslive_to_freecad_internal(calcslive_value, calcslive_unit)
+                value = converted_value
                 description = result.get('description', f'Calculated {symbol}')
 
                 # Create property name
@@ -661,6 +650,91 @@ class CalcsLivePullFromCalcsLive:
             FreeCAD.Console.PrintMessage(message + "\n")
 
 
+class CalcsLiveConfigureMapping:
+    """Configure parameter mapping between FreeCAD and CalcsLive"""
+
+    def GetResources(self):
+        return {
+            'MenuText': 'Configure Mapping',
+            'ToolTip': 'Set up parameter mapping between FreeCAD and CalcsLive PQ symbols',
+            'Pixmap': '',
+            'Accel': 'Ctrl+Shift+M'
+        }
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        try:
+            self.show_mapping_configuration()
+        except Exception as e:
+            FreeCAD.Console.PrintError(f"CalcsLive Configure Mapping failed: {e}\n")
+
+    def show_mapping_configuration(self):
+        """Show mapping configuration interface"""
+        # ParameterMapper already imported globally
+
+        doc = FreeCAD.ActiveDocument
+        if not doc:
+            FreeCAD.Console.PrintError("No active document. Please open a FreeCAD model first.\n")
+            return
+
+        # Get current parameters
+        extractor = CalcsLiveExtractParams()
+        extractor.Activated()  # This will extract and display current parameters
+
+        # Create parameter mapper
+        model_path = doc.FileName if hasattr(doc, 'FileName') else None
+        mapper = create_parameter_mapper(model_path)
+
+        # Show current mapping summary
+        FreeCAD.Console.PrintMessage(f"\n{'='*60}\n")
+        FreeCAD.Console.PrintMessage("PARAMETER MAPPING CONFIGURATION\n")
+        FreeCAD.Console.PrintMessage(f"{'='*60}\n")
+        FreeCAD.Console.PrintMessage(f"{mapper.get_mapping_summary()}\n")
+        FreeCAD.Console.PrintMessage(f"{'='*60}\n\n")
+
+        # Show text-based configuration instructions
+        self.show_configuration_instructions(mapper)
+
+    def show_configuration_instructions(self, mapper):
+        """Show instructions for text-based mapping configuration"""
+
+        instructions = """
+TEXT-BASED MAPPING CONFIGURATION:
+
+1. Set CalcsLive Article ID:
+   FreeCAD Console: mapper.set_calcslive_article("your-article-id")
+
+2. Add Parameter Mappings:
+   FreeCAD Console: mapper.add_mapping("r", "Cylinder_Radius")
+   FreeCAD Console: mapper.add_mapping("h", "Cylinder_Height")
+
+3. Save Configuration:
+   FreeCAD Console: mapper.save_mapping_config()
+
+EXAMPLE WORKFLOW:
+   # Configure for cylinder volume calculation
+   mapper.set_calcslive_article("cylinder-volume-demo")
+   mapper.add_mapping("r", "Cylinder_Radius")
+   mapper.add_mapping("h", "Cylinder_Height")
+   mapper.save_mapping_config()
+
+NOTES:
+- CalcsLive PQ symbols (r, h) are defined in your CalcsLive article
+- FreeCAD parameters are the object-based names shown above
+- Output-only PQs (like V for volume) don't need FreeCAD mappings
+- Configuration is saved per FreeCAD model
+
+Access the mapper object in Python Console with:
+>>> from core.ParameterMapper import create_parameter_mapper
+>>> doc = FreeCAD.ActiveDocument
+>>> mapper = create_parameter_mapper(doc.FileName if hasattr(doc, 'FileName') else None)
+"""
+
+        FreeCAD.Console.PrintMessage(instructions)
+
+
 # Register commands when module is imported
 def register_commands():
     """Register CalcsLive commands with FreeCAD"""
@@ -670,6 +744,7 @@ def register_commands():
     FreeCADGui.addCommand('CalcsLive_Status', CalcsLiveStatus())
     FreeCADGui.addCommand('CalcsLive_Dashboard', CalcsLiveDashboard())
     FreeCADGui.addCommand('CalcsLive_ExtractParams', CalcsLiveExtractParams())
+    FreeCADGui.addCommand('CalcsLive_ConfigureMapping', CalcsLiveConfigureMapping())
     FreeCADGui.addCommand('CalcsLive_SyncToCalcsLive', CalcsLiveSyncToCalcsLive())
     FreeCADGui.addCommand('CalcsLive_PullFromCalcsLive', CalcsLivePullFromCalcsLive())
 

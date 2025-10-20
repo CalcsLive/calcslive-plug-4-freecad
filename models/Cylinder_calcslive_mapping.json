@@ -1,0 +1,9 @@
+{
+  "article_id": "3M9PRU9EL-464",
+  "mapping": {
+    "r": "Cylinder_Radius",
+    "h": "Cylinder_Height"
+  },
+  "description": "Parameter mapping for CalcsLive integration",
+  "created_by": "CalcsLive FreeCAD Workbench"
+}

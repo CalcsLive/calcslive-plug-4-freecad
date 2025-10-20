@@ -1,13 +1,14 @@
 """
-Unit Mapping System for FreeCAD ↔ CalcsLive Integration
+Simplified Unit System for FreeCAD ↔ CalcsLive Integration
 
-Provides static unit mappings between FreeCAD's internal unit system
-and CalcsLive's Physical Quantity (PQ) unit system.
+Simplified approach based on user feedback:
+1. Send FreeCAD units directly to CalcsLive (CalcsLive understands them)
+2. Only convert when sending data back from CalcsLive to FreeCAD internal units
+3. Let CalcsLive handle unit parsing and FreeCAD handle display units
 
-Following separation of concerns principle:
-- FreeCAD handles modeling and units it knows
-- CalcsLive handles calculations and its comprehensive unit system
-- This mapper provides the bridge between the two systems
+Example workflow:
+- FreeCAD: Cylinder_Radius = 50.8 mm → CalcsLive: Cylinder_Radius = 50.8 mm (direct)
+- CalcsLive: r = 20 in → FreeCAD: 508 mm (convert to internal units)
 """
 
 import FreeCAD
@@ -15,276 +16,150 @@ import FreeCAD
 
 class UnitMapper:
     """
-    Static unit mapping between FreeCAD and CalcsLive
+    Simplified unit handling for FreeCAD ↔ CalcsLive integration
 
-    Maps only the units that FreeCAD actually uses to avoid
-    unnecessary complexity and maintain clean separation of concerns.
+    Philosophy: Let each system handle what it does best
+    - FreeCAD: Handles internal units and display preferences
+    - CalcsLive: Handles unit parsing and conversions
+    - Mapper: Only converts CalcsLive results back to FreeCAD internal units
     """
 
-    # Static mapping table: FreeCAD unit → CalcsLive unit
-    FREECAD_TO_CALCSLIVE = {
-        # Length units
-        'mm': 'mm',         # millimeter (FreeCAD's internal length unit)
-        'cm': 'cm',         # centimeter
-        'm': 'm',           # meter
-        'in': 'in',         # inch
-        'ft': 'ft',         # foot
+    # Only map units when converting CalcsLive → FreeCAD internal units
+    CALCSLIVE_TO_FREECAD_INTERNAL = {
+        # Length units → mm (FreeCAD internal)
+        'mm': 1.0,          # millimeter (already internal)
+        'cm': 10.0,         # centimeter → mm
+        'm': 1000.0,        # meter → mm
+        'in': 25.4,         # inch → mm
+        'ft': 304.8,        # foot → mm
 
-        # Area units
-        'mm²': 'mm²',       # square millimeter
-        'cm²': 'cm²',       # square centimeter
-        'm²': 'm²',         # square meter
-        'in²': 'in²',       # square inch
-        'ft²': 'ft²',       # square foot
+        # Angular units → deg (FreeCAD internal)
+        '°': 1.0,           # degree (already internal)
+        'deg': 1.0,         # degree (already internal)
+        'rad': 57.29578,    # radian → degree
 
-        # Volume units
-        'mm³': 'mm³',       # cubic millimeter
-        'cm³': 'cm³',       # cubic centimeter
-        'm³': 'm³',         # cubic meter
-        'in³': 'in³',       # cubic inch
-        'ft³': 'ft³',       # cubic foot
-        'l': 'L',           # liter (FreeCAD uses 'l', CalcsLive uses 'L')
+        # Area units → mm² (FreeCAD internal)
+        'mm²': 1.0,         # square millimeter (already internal)
+        'cm²': 100.0,       # square centimeter → mm²
+        'm²': 1000000.0,    # square meter → mm²
+        'in²': 645.16,      # square inch → mm²
+        'ft²': 92903.04,    # square foot → mm²
 
-        # Angular units
-        'deg': '°',         # degree (FreeCAD uses 'deg', CalcsLive uses '°')
-        'rad': 'rad',       # radian
-
-        # Mass units
-        'g': 'g',           # gram
-        'kg': 'kg',         # kilogram
-        'lb': 'lbm',        # pound mass (FreeCAD 'lb' → CalcsLive 'lbm')
-
-        # Force units
-        'N': 'N',           # newton
-        'kN': 'kN',         # kilonewton
-        'lbf': 'lbf',       # pound force
-
-        # Pressure units
-        'Pa': 'Pa',         # pascal
-        'kPa': 'kPa',       # kilopascal
-        'MPa': 'MPa',       # megapascal
-        'bar': 'bar',       # bar
-        'psi': 'psi',       # pounds per square inch
-
-        # Time units
-        's': 's',           # second
-        'min': 'min',       # minute
-        'h': 'h',           # hour
-
-        # Temperature units
-        'K': 'K',           # kelvin
-        '°C': '°C',         # celsius
-        '°F': '°F',         # fahrenheit
+        # Volume units → mm³ (FreeCAD internal)
+        'mm³': 1.0,         # cubic millimeter (already internal)
+        'cm³': 1000.0,      # cubic centimeter → mm³
+        'L': 1000000.0,     # liter → mm³
+        'm³': 1000000000.0, # cubic meter → mm³
+        'in³': 16387.064,   # cubic inch → mm³
+        'ft³': 28316846.6,  # cubic foot → mm³
     }
 
-    # Reverse mapping: CalcsLive unit → FreeCAD unit
-    CALCSLIVE_TO_FREECAD = {v: k for k, v in FREECAD_TO_CALCSLIVE.items()}
-
-    # Special cases where reverse mapping needs adjustment
-    CALCSLIVE_TO_FREECAD.update({
-        'L': 'l',           # CalcsLive 'L' → FreeCAD 'l'
-        '°': 'deg',         # CalcsLive '°' → FreeCAD 'deg'
-        'lbm': 'lb',        # CalcsLive 'lbm' → FreeCAD 'lb'
-    })
-
     @classmethod
-    def freecad_to_calcslive(cls, freecad_unit: str) -> str:
+    def freecad_to_calcslive_direct(cls, freecad_unit: str) -> str:
         """
-        Map FreeCAD unit to CalcsLive unit
+        Pass FreeCAD unit directly to CalcsLive (simplified approach)
+
+        CalcsLive can understand FreeCAD units directly, so no conversion needed.
+        Only handle special cases where FreeCAD uses different notation.
 
         Args:
-            freecad_unit: Unit string from FreeCAD (e.g., 'mm', 'deg', 'mm²')
+            freecad_unit: Unit string from FreeCAD (e.g., 'mm', 'deg')
 
         Returns:
-            CalcsLive unit string (e.g., 'mm', '°', 'mm²')
-
-        Raises:
-            ValueError: If unit mapping is not found
+            Unit string for CalcsLive (usually the same)
         """
-        if freecad_unit in cls.FREECAD_TO_CALCSLIVE:
-            return cls.FREECAD_TO_CALCSLIVE[freecad_unit]
+        # Special case mappings where FreeCAD and CalcsLive use different notation
+        special_cases = {
+            'deg': '°',         # FreeCAD uses 'deg', CalcsLive prefers '°'
+        }
 
-        # If no mapping found, warn and return original
-        FreeCAD.Console.PrintWarning(
-            f"UnitMapper: No mapping found for FreeCAD unit '{freecad_unit}', using as-is\n"
-        )
-        return freecad_unit
+        return special_cases.get(freecad_unit, freecad_unit)
 
     @classmethod
-    def calcslive_to_freecad(cls, calcslive_unit: str) -> str:
+    def calcslive_to_freecad_internal(cls, value: float, calcslive_unit: str) -> tuple:
         """
-        Map CalcsLive unit to FreeCAD unit
+        Convert CalcsLive value with unit to FreeCAD internal units
 
         Args:
-            calcslive_unit: Unit string from CalcsLive (e.g., 'mm', '°', 'mm²')
+            value: Numeric value from CalcsLive
+            calcslive_unit: Unit string from CalcsLive (e.g., 'in', '°C', 'ft³')
 
         Returns:
-            FreeCAD unit string (e.g., 'mm', 'deg', 'mm²')
+            tuple: (converted_value, freecad_internal_unit)
 
-        Raises:
-            ValueError: If unit mapping is not found
+        Example:
+            calcslive_to_freecad_internal(20, 'in') → (508.0, 'mm')
+            calcslive_to_freecad_internal(45, '°') → (45.0, 'deg')
         """
-        if calcslive_unit in cls.CALCSLIVE_TO_FREECAD:
-            return cls.CALCSLIVE_TO_FREECAD[calcslive_unit]
+        if calcslive_unit in cls.CALCSLIVE_TO_FREECAD_INTERNAL:
+            conversion_factor = cls.CALCSLIVE_TO_FREECAD_INTERNAL[calcslive_unit]
+            converted_value = value * conversion_factor
 
-        # If no mapping found, warn and return original
-        FreeCAD.Console.PrintWarning(
-            f"UnitMapper: No mapping found for CalcsLive unit '{calcslive_unit}', using as-is\n"
-        )
-        return calcslive_unit
+            # Determine FreeCAD internal unit based on unit type
+            if calcslive_unit in ['mm', 'cm', 'm', 'in', 'ft']:
+                freecad_unit = 'mm'
+            elif calcslive_unit in ['°', 'deg', 'rad']:
+                freecad_unit = 'deg'
+            elif calcslive_unit in ['mm²', 'cm²', 'm²', 'in²', 'ft²']:
+                freecad_unit = 'mm²'
+            elif calcslive_unit in ['mm³', 'cm³', 'L', 'm³', 'in³', 'ft³']:
+                freecad_unit = 'mm³'
+            else:
+                freecad_unit = calcslive_unit  # Fallback
+
+            return (converted_value, freecad_unit)
+        else:
+            # Unknown unit - pass through with warning
+            FreeCAD.Console.PrintWarning(f"UnitMapper: Unknown CalcsLive unit '{calcslive_unit}', using as-is\n")
+            return (value, calcslive_unit)
 
     @classmethod
-    def is_supported_freecad_unit(cls, unit: str) -> bool:
+    def map_parameter_units(cls, parameters):
         """
-        Check if FreeCAD unit is supported for mapping
+        Apply simplified unit mapping to parameter list
+
+        For FreeCAD → CalcsLive: Pass units directly (CalcsLive handles parsing)
+        For CalcsLive → FreeCAD: Convert to internal units when needed
 
         Args:
-            unit: FreeCAD unit string
+            parameters: List of parameter dictionaries
 
         Returns:
-            True if unit can be mapped to CalcsLive
-        """
-        return unit in cls.FREECAD_TO_CALCSLIVE
-
-    @classmethod
-    def is_supported_calcslive_unit(cls, unit: str) -> bool:
-        """
-        Check if CalcsLive unit is supported for mapping
-
-        Args:
-            unit: CalcsLive unit string
-
-        Returns:
-            True if unit can be mapped to FreeCAD
-        """
-        return unit in cls.CALCSLIVE_TO_FREECAD
-
-    @classmethod
-    def get_supported_freecad_units(cls) -> list:
-        """
-        Get list of all supported FreeCAD units
-
-        Returns:
-            List of FreeCAD unit strings that can be mapped
-        """
-        return list(cls.FREECAD_TO_CALCSLIVE.keys())
-
-    @classmethod
-    def get_supported_calcslive_units(cls) -> list:
-        """
-        Get list of all supported CalcsLive units
-
-        Returns:
-            List of CalcsLive unit strings that can be mapped
-        """
-        return list(cls.CALCSLIVE_TO_FREECAD.keys())
-
-    @classmethod
-    def map_parameter_units(cls, parameters: list) -> list:
-        """
-        Map units for a list of FreeCAD parameters
-
-        Args:
-            parameters: List of parameter dictionaries with 'unit' field
-
-        Returns:
-            List of parameters with added 'calcslive_unit' field
+            List of parameters with appropriate unit mappings applied
         """
         mapped_parameters = []
 
         for param in parameters:
+            # Create a copy to avoid modifying original
             mapped_param = param.copy()
-            freecad_unit = param.get('unit', '')
 
-            # Map the unit
-            calcslive_unit = cls.freecad_to_calcslive(freecad_unit)
+            # For FreeCAD → CalcsLive: Use direct unit passing
+            original_unit = param.get('unit', '')
+            calcslive_unit = cls.freecad_to_calcslive_direct(original_unit)
+
             mapped_param['calcslive_unit'] = calcslive_unit
-            mapped_param['unit_mapped'] = (freecad_unit != calcslive_unit)
+            mapped_param['unit_mapped'] = (calcslive_unit != original_unit)
 
             mapped_parameters.append(mapped_param)
-
-            # Log the mapping for debugging
-            if mapped_param['unit_mapped']:
-                FreeCAD.Console.PrintMessage(
-                    f"UnitMapper: '{freecad_unit}' → '{calcslive_unit}'\n"
-                )
 
         return mapped_parameters
 
     @classmethod
-    def validate_mapping(cls) -> dict:
+    def create_parameter_summary(cls, parameters):
         """
-        Validate the unit mapping tables for consistency
+        Create a summary of parameter mapping for logging
+
+        Args:
+            parameters: List of mapped parameters
 
         Returns:
-            Dictionary with validation results and any issues found
+            Dictionary with mapping statistics
         """
-        results = {
-            'valid': True,
-            'issues': [],
-            'stats': {
-                'freecad_units': len(cls.FREECAD_TO_CALCSLIVE),
-                'calcslive_units': len(cls.CALCSLIVE_TO_FREECAD),
-                'bidirectional_mappings': 0
-            }
+        total_params = len(parameters)
+        mapped_count = sum(1 for p in parameters if p.get('unit_mapped', False))
+
+        return {
+            'total_parameters': total_params,
+            'unit_mappings_applied': mapped_count,
+            'direct_passthrough': total_params - mapped_count
         }
-
-        # Check bidirectional mapping consistency
-        bidirectional_count = 0
-        for fc_unit, cl_unit in cls.FREECAD_TO_CALCSLIVE.items():
-            if cl_unit in cls.CALCSLIVE_TO_FREECAD:
-                reverse_mapped = cls.CALCSLIVE_TO_FREECAD[cl_unit]
-                if reverse_mapped == fc_unit:
-                    bidirectional_count += 1
-                else:
-                    results['issues'].append(
-                        f"Bidirectional mapping issue: {fc_unit} → {cl_unit} → {reverse_mapped}"
-                    )
-                    results['valid'] = False
-
-        results['stats']['bidirectional_mappings'] = bidirectional_count
-
-        return results
-
-
-def test_unit_mapper():
-    """
-    Test function to validate the unit mapping system
-    """
-    FreeCAD.Console.PrintMessage("Testing UnitMapper...\n")
-
-    # Test individual mappings
-    test_cases = [
-        ('mm', 'mm'),
-        ('deg', '°'),
-        ('mm²', 'mm²'),
-        ('l', 'L'),
-        ('lb', 'lbm')
-    ]
-
-    for fc_unit, expected_cl_unit in test_cases:
-        cl_unit = UnitMapper.freecad_to_calcslive(fc_unit)
-        fc_back = UnitMapper.calcslive_to_freecad(cl_unit)
-
-        FreeCAD.Console.PrintMessage(
-            f"  {fc_unit} → {cl_unit} → {fc_back} "
-            f"{'✓' if cl_unit == expected_cl_unit else '✗'}\n"
-        )
-
-    # Validate mapping consistency
-    validation = UnitMapper.validate_mapping()
-    FreeCAD.Console.PrintMessage(f"Validation: {'✓ PASSED' if validation['valid'] else '✗ FAILED'}\n")
-
-    if validation['issues']:
-        for issue in validation['issues']:
-            FreeCAD.Console.PrintWarning(f"  Issue: {issue}\n")
-
-    FreeCAD.Console.PrintMessage(
-        f"Stats: {validation['stats']['freecad_units']} FreeCAD units, "
-        f"{validation['stats']['calcslive_units']} CalcsLive units, "
-        f"{validation['stats']['bidirectional_mappings']} bidirectional\n"
-    )
-
-
-if __name__ == "__main__":
-    test_unit_mapper()

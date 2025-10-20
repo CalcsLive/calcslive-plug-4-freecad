@@ -90,7 +90,7 @@ class SyncCommand:
                     progress_dialog.close()
 
         except Exception as e:
-            FreeCAD.Console.PrintError(f"CalcsLive Sync failed: {str(e)}\n")
+            FreeCAD.Console.PrintError(f"[SyncCommand]CalcsLive Sync failed: {str(e)}\n")
             self._show_error_dialog(str(e))
 
     def _get_sync_info(self):
