@@ -1,0 +1,462 @@
+# -*- coding: utf-8 -*-
+# FC_CL_Bridge.FCMacro
+# Pure HTTP bridge between FreeCAD VarSet and CalcsLive.
+# - Serves a minimal HTTP API on http://127.0.0.1:8787
+#     GET  /calcslive/export  -> export VarSet parameters (values + units)
+#     POST /calcslive/import  -> update VarSet parameters from CalcsLive
+#
+# Notes:
+# - VarSet object is the single source of truth (no additional storage)
+# - All reads/writes use FreeCAD.Units.Quantity for proper unit handling
+# - ArticleID property in VarSet links to CalcsLive calculation
+# - Keep this macro running to maintain HTTP bridge
+#
+# Tested with FreeCAD 1.0 (Python 3.x).
+
+from __future__ import annotations
+import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+try:
+    import FreeCAD as App
+    import FreeCADGui as Gui
+    from FreeCAD import Units
+except Exception as e:
+    raise RuntimeError("This macro must be run inside FreeCAD.") from e
+
+HOST = "127.0.0.1"
+PORT = 8787
+
+# -----------------------------
+# Bridge Object Management
+# -----------------------------
+
+# VarSet-based mapping functions (no bridge object needed)
+# VarSet properties store ArticleID and act as single source of truth
+
+def get_varset_object(doc=None):
+    """Get the VarSet object from the document (adapted from varset_data_extractor.py)."""
+    doc = doc or App.ActiveDocument
+    if doc is None:
+        raise RuntimeError("No active document. Create/open a document first.")
+
+    # Find VarSet by TypeId and Label (correct approach)
+    target_label = "PQs"
+    varset = None
+    for obj in doc.Objects:
+        if obj.TypeId == 'App::VarSet' and obj.Label == target_label:
+            varset = obj
+            break
+
+    if varset is None:
+        # List all VarSets for debugging
+        varsets_found = []
+        for obj in doc.Objects:
+            if obj.TypeId == 'App::VarSet':
+                varsets_found.append(f"Name='{obj.Name}', Label='{obj.Label}'")
+
+        error_msg = f"No VarSet found with Label='{target_label}'"
+        if varsets_found:
+            error_msg += f". Found VarSets: {', '.join(varsets_found)}"
+        raise RuntimeError(error_msg)
+
+    return varset
+
+def get_varset_mapping(doc=None):
+    """Get current VarSet parameter data including ArticleID."""
+    varset = get_varset_object(doc)
+
+    # Extract ArticleID and ArticleTitle from VarSet properties
+    article_id = getattr(varset, '_ArticleID', None)
+    article_title = getattr(varset, '_ArticleTitle', None)
+
+    return {
+        "docVersion": "0.2",
+        "unitsSchema": "UserPreferred",
+        "articleId": article_id,
+        "articleTitle": article_title,
+        "varsetObject": varset
+    }
+
+# -----------------------------
+# Quantity Helpers
+# -----------------------------
+
+def _kind_to_units_kind(kind: str):
+    # Map PQ kind string to Units.* enum-like objects (FreeCAD 1.0 compatible)
+    table = {
+        "Length": Units.Length,
+        "Angle": Units.Angle,
+        "Area": Units.Area,
+        "Volume": Units.Volume,
+        "Mass": Units.Mass,
+        "Velocity": Units.Velocity,
+        "Acceleration": Units.Acceleration,
+        "Pressure": Units.Pressure,
+        "Force": Units.Force,
+        # "Torque": Units.Torque,  # Not available in FreeCAD 1.0
+        "Power": Units.Power,
+        "Density": getattr(Units, 'Density', Units.Length)  # Fallback if not available
+    }
+    return table.get(kind, Units.Length)
+
+def to_quantity(value, kind="Length"):
+    """Wrap value (float or Quantity or string '10 mm') into Units.Quantity of given kind."""
+    if hasattr(value, "Value") and hasattr(value, "getUnit"):
+        return value  # already a Quantity
+    if isinstance(value, (float, int)):
+        return Units.Quantity(float(value), _kind_to_units_kind(kind))
+    # string like "10 mm"
+    return Units.Quantity(str(value))
+
+def q_si_value(q):
+    return float(q.Value)
+
+def q_display(q):
+    # FreeCAD 1.0 compatibility fix
+    try:
+        # Try modern API first
+        unit = q.getUserPreferredUnit()
+        val = q.getValueAs(unit)
+        return float(val), unit
+    except (AttributeError, TypeError):
+        try:
+            # FreeCAD 1.0 fallback - parse string representation
+            qstr = str(q)
+            # Example: "90.0 in" -> val=90.0, unit="in"
+            if " " in qstr:
+                parts = qstr.rsplit(" ", 1)  # Split from right to handle negative numbers
+                val = float(parts[0])
+                unit = parts[1] if len(parts) > 1 else ""
+                return val, unit
+            else:
+                # Just a number, try to get unit separately
+                try:
+                    unit = str(q.getUnit()) if hasattr(q, 'getUnit') else ""
+                except:
+                    unit = ""
+                return float(q.Value), unit
+        except Exception as e:
+            # Ultimate fallback - just the value with no unit
+            return float(q.Value), ""
+
+# -----------------------------
+# Read/Write by Path
+# -----------------------------
+
+def read_path(doc, path, kind="Length"):
+    obj_name, prop = path.split("/", 1)
+    obj = doc.getObject(obj_name)
+    if obj is None:
+        raise ValueError(f"Object not found: {obj_name}")
+    # Spreadsheet cell
+    if obj.TypeId == "Spreadsheet::Sheet":
+        raw = obj.get(prop)
+        try:
+            val = float(raw)
+        except Exception:
+            raise ValueError(f"Spreadsheet cell is non-numeric: {path} = {raw}")
+        q = to_quantity(val, kind)
+    else:
+        raw = obj.getPropertyByName(prop)
+        q = to_quantity(raw, kind)
+    return q
+
+def has_expression(obj, prop):
+    try:
+        # API varies between versions; guard
+        if hasattr(obj, "ExpressionEngine"):
+            expr = obj.getExpression(prop)
+            return expr is not None
+        if hasattr(obj, "getExpression"):
+            return obj.getExpression(prop) is not None
+    except Exception:
+        pass
+    return False
+
+def write_path(doc, path, value, unit=None, kind="Length", allow_override_expression=False):
+    obj_name, prop = path.split("/", 1)
+    obj = doc.getObject(obj_name)
+    if obj is None:
+        raise ValueError(f"Object not found: {obj_name}")
+
+    if has_expression(obj, prop) and not allow_override_expression:
+        raise RuntimeError(f"{path} is expression-driven; refusing to overwrite.")
+
+    q = Units.Quantity(f"{value} {unit}") if unit else to_quantity(value, kind)
+
+    if obj.TypeId == "Spreadsheet::Sheet":
+        # Store in user's display units to keep sheet readable
+        disp_val, disp_unit = q_display(q)
+        obj.set(prop, str(disp_val))
+    else:
+        # Try to set Quantity; fallback to SI float
+        try:
+            setattr(obj, prop, q)  # Direct attribute assignment for FreeCAD objects
+        except Exception:
+            setattr(obj, prop, float(q.Value))
+
+# -----------------------------
+# Export/Import Payloads
+# -----------------------------
+
+def export_payload(doc=None):
+    """Export VarSet parameters using working varset_data_extractor.py pattern."""
+    doc = doc or App.ActiveDocument
+
+    try:
+        varset = get_varset_object(doc)
+    except RuntimeError as e:
+        return {
+            "docName": doc.Label if doc else None,
+            "docFile": getattr(doc, "FileName", None),
+            "params": [],
+            "error": str(e)
+        }
+
+    result = {
+        "docName": doc.Label if doc else None,
+        "docFile": getattr(doc, "FileName", None),
+        "params": []
+    }
+
+    # Properties to skip (from working varset_data_extractor.py)
+    skip_props = {
+        'Label', 'Label2', 'Name', 'Visibility', 'Content', 'ExpressionEngine',
+        'Document', 'Module', 'TypeId', 'ID', 'State', 'ViewObject', 'FullName',
+        'InList', 'OutList', 'Parents', 'MemSize', 'MustExecute', 'Removing',
+        'NoTouch', 'OldLabel', 'ArticleID', 'ArticleTitle', 'ArticleURL',
+        'Base__ArticleID', 'Base__ArticleTitle', 'ExportVars'
+    }
+    
+     # Build expression map once
+    expr_map = dict(varset.ExpressionEngine)
+
+    # Get all VarSet properties (using working pattern)
+    for prop_name in getattr(varset, "PropertiesList", []):
+        if prop_name in skip_props:
+            continue
+
+        try:
+            # Get the property value (working pattern)
+            prop_str = getattr(varset, prop_name)
+
+            # Get expression if any
+            expr = ""
+            # Get expression (or user input string)
+            expr = expr_map.get(prop_name, "")
+            """ if hasattr(varset_obj, 'getExpression'):
+                expr = varset_obj.getExpression(prop_name) or "" """
+            print(f"expr = {expr}\n")  # expr = ??  
+
+            # Determine readonly: if it has an expression, it's likely read-only
+            readonly = bool(expr)
+
+            # Get property label (enhanced from varset_data_extractor.py)
+            prop_label = prop_name.split("_", 1)[-1]  # Splits on first underscore
+
+            # Determine parameter role
+            role = "input"  # default
+            if readonly:
+                role = "output"
+            elif "Mass" in prop_name:
+                role = "both"
+
+            # Extract SI value and display units (working pattern)
+            if hasattr(prop_str, 'Value'):  # Quantity
+                value_si = prop_str.Value  # Base SI value
+
+                # Extract SI unit (enhanced from varset_data_extractor.py)
+                unit_si = str(prop_str.Unit).split()[1] if hasattr(prop_str, 'Unit') and str(prop_str.Unit).count(' ') >= 1 else "?"
+
+                # Get display value using FreeCAD's schema (working pattern)
+                try:
+                    result_tuple = App.Units.schemaTranslate(prop_str, App.Units.getSchema())
+                    display_str = result_tuple[0].strip()  # e.g., "10.00 in"
+
+                    parts = display_str.split()
+                    if len(parts) >= 2:
+                        # Last token is unit, rest is number
+                        unit_part = parts[-1]
+                        number_part = " ".join(parts[:-1])
+                        display_value = float(number_part)
+                        display_unit = unit_part
+                    elif len(parts) == 1:
+                        # No unit
+                        display_value = float(display_str)
+                        display_unit = "?"
+                    else:
+                        raise ValueError("No parts in formatted string")
+
+                except Exception as e:
+                    # Fallback to raw unit symbol if possible
+                    display_value = value_si
+                    if hasattr(prop_str, 'Unit'):
+                        try:
+                            display_unit = str(prop_str.Unit).split()[0]
+                        except:
+                            display_unit = "?"
+                    else:
+                        display_unit = "?"
+
+                # Enhanced data structure matching varset_data_extractor.py
+                result["params"].append({
+                    "path": f"{varset.Name}:{varset.Label}/{prop_name}",  # Enhanced path format
+                    "label": prop_label,                                 # Clean label extraction
+                    "name": prop_name,                                   # Full property name
+                    "expr": expr,                                        # Expression if calculated
+                    "readonly": readonly,                                # Based on expression
+                    "value_si": value_si,                               # SI base value
+                    "unit_si": unit_si,                                 # SI unit
+                    "display": {                                        # Display object
+                        "value": display_value,                         # User's display value
+                        "unit": display_unit                            # User's display unit
+                    }
+                })
+
+            elif isinstance(prop_str, str):
+                # String properties (ArticleID, etc.) - enhanced format
+                result["params"].append({
+                    "path": f"{varset.Name}:{varset.Label}/{prop_name}",
+                    "label": prop_name.split("_", 1)[-1],  # Clean label
+                    "name": prop_name,
+                    "value": prop_str,
+                    "type": "string"
+                })
+            else:
+                # Plain numbers - enhanced format matching varset_data_extractor.py
+                result["params"].append({
+                    "path": f"{varset.Name}:{varset.Label}/{prop_name}",  # Enhanced path format
+                    "label": prop_label,                                 # Clean label extraction
+                    "name": prop_name,                                   # Full property name
+                    "expr": expr,                                        # Expression if calculated
+                    "readonly": readonly,                                # Based on expression
+                    "value_si": float(prop_str),                        # SI base value
+                    "unit_si": "?",                                     # No unit for plain numbers
+                    "display": {                                        # Display object
+                        "value": float(prop_str),                       # Same as SI for plain numbers
+                        "unit": "?"                                     # No unit
+                    }
+                })
+
+        except Exception as e:
+            # Error handling - enhanced format matching varset_data_extractor.py
+            result["params"].append({
+                "path": f"{varset.Name}:{varset.Label}/{prop_name}",
+                "label": prop_name.split("_", 1)[-1],
+                "name": prop_name,
+                "error": str(e)
+            })
+
+    return result
+
+def apply_updates(updates: list, doc=None, allow_override_expression=False):
+    doc = doc or App.ActiveDocument
+    applied = []
+    errors = []
+    for upd in updates:
+        path = upd.get("name") or upd.get("path")
+        value = upd.get("value")
+        unit = upd.get("unit")
+        kind = upd.get("pqKind", "Length")
+        try:
+            write_path(doc, path, value, unit, kind, allow_override_expression=allow_override_expression)
+            applied.append({"name": path, "value": value, "unit": unit})
+        except Exception as e:
+            errors.append({"name": path, "error": str(e)})
+    if doc:
+        try:
+            doc.recompute()
+        except Exception:
+            pass
+    # Removed: Bridge object logging (no longer needed in simplified architecture)
+    return {"applied": applied, "errors": errors}
+
+# -----------------------------
+# HTTP Server
+# -----------------------------
+
+class HttpHandler(BaseHTTPRequestHandler):
+    server_version = "FC_CL_BridgeHTTP/0.1"
+
+    def _send_json(self, code, payload):
+        data = json.dumps(payload).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(data)))
+        # Add CORS headers for browser requests
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+        self.wfile.write(data)
+
+    def do_GET(self):
+        if self.path == "/calcslive/export":
+            try:
+                payload = export_payload(App.ActiveDocument)
+                self._send_json(200, payload)
+            except Exception as e:
+                self._send_json(500, {"error": str(e)})
+        else:
+            self._send_json(404, {"error": "Not found"})
+
+    def do_POST(self):
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        body = self.rfile.read(length) if length > 0 else b"{}"
+        try:
+            data = json.loads(body.decode("utf-8") or "{}")
+        except Exception:
+            data = {}
+
+        if self.path == "/calcslive/import":
+            try:
+                updates = data.get("updates", [])
+                allow = bool(data.get("allowOverrideExpression", False))
+                res = apply_updates(updates, App.ActiveDocument, allow_override_expression=allow)
+                self._send_json(200, res)
+            except Exception as e:
+                self._send_json(500, {"error": str(e)})
+        else:
+            self._send_json(404, {"error": "Not found"})
+
+    def do_OPTIONS(self):
+        # Handle CORS preflight requests
+        self.send_response(200)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+def _run_server():
+    httpd = ThreadingHTTPServer((HOST, PORT), HttpHandler)
+    print(f"[FC_CL_Bridge] HTTP server on http://{HOST}:{PORT}")
+    try:
+        httpd.serve_forever()
+    except Exception as e:
+        print("[FC_CL_Bridge] Server stopped:", e)
+
+_server_thread = None
+
+def start_server():
+    global _server_thread
+    if _server_thread and _server_thread.is_alive():
+        print(f"[FC_CL_Bridge] Server already running at http://{HOST}:{PORT}")
+        return
+    _server_thread = threading.Thread(target=_run_server, daemon=True)
+    _server_thread.start()
+
+# -----------------------------
+# Auto-run when macro starts
+# -----------------------------
+
+def main():
+    # Removed: Bridge object initialization (no longer needed in simplified architecture)
+    start_server()
+    print("[FC-CL-Bridge] Ready. Endpoints:")
+    print(f"  GET  http://{HOST}:{PORT}/calcslive/export    (export VarSet data)")
+    print(f"  POST http://{HOST}:{PORT}/calcslive/import    (update VarSet values)")
+
+if __name__ == "__main__":
+    main()
