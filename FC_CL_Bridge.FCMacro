@@ -68,8 +68,8 @@ def get_varset_mapping(doc=None):
     varset = get_varset_object(doc)
 
     # Extract ArticleID and ArticleTitle from VarSet properties
-    article_id = getattr(varset, '_ArticleID', None)
-    article_title = getattr(varset, '_ArticleTitle', None)
+    article_id = getattr(varset, 'ArticleID', None)
+    article_title = getattr(varset, 'ArticleTitle', None)
 
     return {
         "docVersion": "0.2",
@@ -78,6 +78,70 @@ def get_varset_mapping(doc=None):
         "articleTitle": article_title,
         "varsetObject": varset
     }
+
+def get_pq_mappings(doc=None):
+    """Get PQ mapping data stored in VarSet properties."""
+    varset = get_varset_object(doc)
+
+    # Get mapping data from VarSet property (JSON string)
+    mapping_json = getattr(varset, 'CalcsLiveMappings', None)
+
+    if mapping_json:
+        try:
+            mapping_data = json.loads(mapping_json)
+            return mapping_data
+        except (json.JSONDecodeError, TypeError):
+            print("[FC_CL_Bridge] Warning: Invalid mapping JSON in VarSet, returning default structure")
+
+    # Return default structure
+    return {
+        "docVersion": "0.2",
+        "unitsSchema": "UserPreferred",
+        "params": [],
+        "articles": []
+    }
+
+def set_article_info(article_id, article_title=None, doc=None):
+    """Store ArticleID and ArticleTitle in VarSet CalcsLive group."""
+    varset = get_varset_object(doc)
+
+    # Create or update the ArticleID property in CalcsLive group
+    if not hasattr(varset, 'ArticleID'):
+        varset.addProperty("App::PropertyString", "ArticleID", "CalcsLive", "CalcsLive article identifier")
+    varset.ArticleID = article_id
+
+    # Create or update the ArticleTitle property in CalcsLive group
+    if article_title and not hasattr(varset, 'ArticleTitle'):
+        varset.addProperty("App::PropertyString", "ArticleTitle", "CalcsLive", "CalcsLive article title")
+    if article_title:
+        varset.ArticleTitle = article_title
+
+    # Force document recompute to ensure properties are saved
+    if doc:
+        doc.recompute()
+
+    print(f"[FC_CL_Bridge] Set ArticleID: {article_id}, ArticleTitle: {article_title}")
+
+def set_pq_mappings(mapping_data, doc=None):
+    """Store PQ mapping data in VarSet properties."""
+    varset = get_varset_object(doc)
+
+    # Convert mapping data to JSON and store in VarSet property
+    mapping_json = json.dumps(mapping_data, indent=2)
+
+    # Create or update the CalcsLiveMappings property
+    if not hasattr(varset, 'CalcsLiveMappings'):
+        # Add new string property for mapping storage
+        varset.addProperty("App::PropertyString", "CalcsLiveMappings", "CalcsLive", "PQ mapping relations (JSON)")
+
+    varset.CalcsLiveMappings = mapping_json
+
+    # Force document recompute to ensure property is saved
+    if doc:
+        doc.recompute()
+
+    print(f"[FC_CL_Bridge] Saved PQ mappings to VarSet: {len(mapping_data.get('articles', []))} articles")
+    return {"success": True, "articlesCount": len(mapping_data.get('articles', []))}
 
 # -----------------------------
 # Quantity Helpers
@@ -215,9 +279,15 @@ def export_payload(doc=None):
             "error": str(e)
         }
 
+    # Extract ArticleID and ArticleTitle from VarSet properties
+    article_id = getattr(varset, 'ArticleID', None)
+    article_title = getattr(varset, 'ArticleTitle', None)
+
     result = {
         "docName": doc.Label if doc else None,
         "docFile": getattr(doc, "FileName", None),
+        "articleId": article_id,      # Include ArticleID at top level
+        "articleTitle": article_title, # Include ArticleTitle at top level
         "params": []
     }
 
@@ -399,6 +469,12 @@ class HttpHandler(BaseHTTPRequestHandler):
                 self._send_json(200, payload)
             except Exception as e:
                 self._send_json(500, {"error": str(e)})
+        elif self.path == "/calcslive/mapping":
+            try:
+                mapping_data = get_pq_mappings(App.ActiveDocument)
+                self._send_json(200, mapping_data)
+            except Exception as e:
+                self._send_json(500, {"error": str(e)})
         else:
             self._send_json(404, {"error": "Not found"})
 
@@ -416,6 +492,25 @@ class HttpHandler(BaseHTTPRequestHandler):
                 allow = bool(data.get("allowOverrideExpression", False))
                 res = apply_updates(updates, App.ActiveDocument, allow_override_expression=allow)
                 self._send_json(200, res)
+            except Exception as e:
+                self._send_json(500, {"error": str(e)})
+        elif self.path == "/calcslive/mapping":
+            try:
+                # Save mapping data to VarSet
+                result = set_pq_mappings(data, App.ActiveDocument)
+                self._send_json(200, result)
+            except Exception as e:
+                self._send_json(500, {"error": str(e)})
+        elif self.path == "/calcslive/article-meta":
+            try:
+                # Set ArticleID and ArticleTitle in VarSet
+                article_id = data.get("articleId")
+                article_title = data.get("articleTitle")
+                if article_id:
+                    set_article_info(article_id, article_title, App.ActiveDocument)
+                    self._send_json(200, {"success": True, "articleId": article_id, "articleTitle": article_title})
+                else:
+                    self._send_json(400, {"error": "articleId is required"})
             except Exception as e:
                 self._send_json(500, {"error": str(e)})
         else:
@@ -455,8 +550,11 @@ def main():
     # Removed: Bridge object initialization (no longer needed in simplified architecture)
     start_server()
     print("[FC-CL-Bridge] Ready. Endpoints:")
-    print(f"  GET  http://{HOST}:{PORT}/calcslive/export    (export VarSet data)")
-    print(f"  POST http://{HOST}:{PORT}/calcslive/import    (update VarSet values)")
+    print(f"  GET  http://{HOST}:{PORT}/calcslive/export       (export VarSet data)")
+    print(f"  POST http://{HOST}:{PORT}/calcslive/import       (update VarSet values)")
+    print(f"  GET  http://{HOST}:{PORT}/calcslive/mapping      (get PQ mappings)")
+    print(f"  POST http://{HOST}:{PORT}/calcslive/mapping      (save PQ mappings)")
+    print(f"  POST http://{HOST}:{PORT}/calcslive/article-meta (set ArticleID/Title)")
 
 if __name__ == "__main__":
     main()
