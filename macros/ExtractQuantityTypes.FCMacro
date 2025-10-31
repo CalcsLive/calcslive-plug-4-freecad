@@ -1,0 +1,538 @@
+# ExtractQuantityTypes.FCMacro
+#
+# Dynamic extraction of all FreeCAD quantity property types and their base units
+# This macro discovers all available App::Property* types and analyzes their characteristics
+#
+# Usage: Run this macro in FreeCAD to generate a comprehensive quantity types report
+# Output: JSON data with property types, base units, and characteristics
+
+import FreeCAD as App
+import json
+import inspect
+from typing import Dict, Any, List
+
+def extract_all_property_types() -> Dict[str, Any]:
+    """
+    Dynamically extract all FreeCAD property types and their characteristics
+    """
+    print("=== FreeCAD Quantity Types Extraction ===")
+
+    quantity_types = {}
+
+    # Get all property types from App namespace
+    property_types = []
+
+    # Method 1: Scan App namespace for Property classes
+    for name in dir(App):
+        if name.startswith('Property') and hasattr(App, name):
+            try:
+                prop_class = getattr(App, name)
+                if inspect.isclass(prop_class):
+                    property_types.append(f"App::{name}")
+                    print(f"Found property type: App::{name}")
+            except:
+                continue
+
+    # Method 2: Use FreeCAD's internal property type registry (if available)
+    try:
+        # This might work in some FreeCAD versions
+        if hasattr(App, 'listPropertyTypes'):
+            internal_types = App.listPropertyTypes()
+            for prop_type in internal_types:
+                if prop_type not in property_types:
+                    property_types.append(prop_type)
+                    print(f"Found via registry: {prop_type}")
+    except:
+        pass
+
+    # Method 3: Create test objects and analyze their available property types
+    try:
+        # Create a temporary document for testing
+        test_doc = App.newDocument("QuantityTypesTest")
+
+        # Create a feature object to test property addition
+        test_obj = test_doc.addObject("App::FeaturePython", "TestObj")
+
+        # Common property types that we know exist
+        known_types = [
+            "App::PropertyLength",
+            "App::PropertyArea",
+            "App::PropertyVolume",
+            "App::PropertyMass",
+            "App::PropertyAngle",
+            "App::PropertyDistance",
+            "App::PropertySpeed",
+            "App::PropertyAcceleration",
+            "App::PropertyForce",
+            "App::PropertyPressure",
+            "App::PropertyDensity",
+            "App::PropertyEnergy",
+            "App::PropertyPower",
+            "App::PropertyFrequency",
+            "App::PropertyTime",
+            "App::PropertyTemperature",
+            "App::PropertyElectricCurrent",
+            "App::PropertyElectricPotential",
+            "App::PropertyQuantity",
+            "App::PropertyQuantityConstraint",
+            "App::PropertyFloat",
+            "App::PropertyInteger",
+            "App::PropertyBool",
+            "App::PropertyString",
+            "App::PropertyVector",
+            "App::PropertyVectorDistance",
+            "App::PropertyPlacement",
+            "App::PropertyRotation",
+            "App::PropertyMatrix",
+            "App::PropertyColor",
+            "App::PropertyMaterial"
+        ]
+
+        for prop_type in known_types:
+            if prop_type not in property_types:
+                property_types.append(prop_type)
+
+        # Clean up test document
+        App.closeDocument("QuantityTypesTest")
+
+    except Exception as e:
+        print(f"Method 3 failed: {e}")
+
+    # Now analyze each property type
+    for prop_type in sorted(property_types):
+        analysis = analyze_property_type(prop_type)
+        if analysis:
+            quantity_types[prop_type] = analysis
+
+    print(f"\n=== Analysis Complete ===")
+    print(f"Found {len(quantity_types)} property types")
+
+    return {
+        "timestamp": App.ConfigGet("BuildRevisionDate"),  # FreeCAD build info
+        "freecad_version": App.Version(),
+        "total_types": len(quantity_types),
+        "property_types": quantity_types
+    }
+
+def analyze_property_type(prop_type: str) -> Dict[str, Any]:
+    """
+    Analyze a specific property type to determine its characteristics
+    """
+    analysis = {
+        "property_type": prop_type,
+        "base_unit": None,
+        "category": None,
+        "is_quantity": False,
+        "is_numeric": False,
+        "description": None,
+        "example_units": [],
+        "test_successful": False
+    }
+
+    try:
+        # Create a temporary document for testing
+        test_doc = App.newDocument("PropTypeTest")
+        test_obj = test_doc.addObject("App::FeaturePython", "TestProp")
+
+        # Try to add a property of this type
+        try:
+            test_obj.addProperty(prop_type, "TestProperty", "Test", "Test property")
+            analysis["test_successful"] = True
+
+            # Get the property object
+            test_prop = getattr(test_obj, "TestProperty", None)
+
+            if test_prop is not None:
+                # Analyze the property
+                analysis["is_numeric"] = hasattr(test_prop, 'Value')
+
+                # Check if it's a quantity (has units)
+                if hasattr(test_prop, 'Unit'):
+                    analysis["is_quantity"] = True
+                    try:
+                        unit_info = str(test_prop.Unit)
+                        analysis["base_unit"] = unit_info
+                        print(f"  {prop_type}: Unit = {unit_info}")
+                    except:
+                        pass
+
+                # Try to determine category from property type name
+                analysis["category"] = categorize_property_type(prop_type)
+
+                # Get example units if it's a quantity type
+                if analysis["is_quantity"]:
+                    analysis["example_units"] = get_example_units(prop_type)
+
+                # Try to get base unit by setting a test value
+                if analysis["is_quantity"] and hasattr(test_prop, 'Value'):
+                    try:
+                        # Set a test value to see what unit it uses
+                        if 'Length' in prop_type or 'Distance' in prop_type:
+                            test_prop.Value = 100.0  # 100 mm typically
+                            analysis["base_unit"] = "mm"
+                        elif 'Area' in prop_type:
+                            test_prop.Value = 10000.0  # 10000 mm²
+                            analysis["base_unit"] = "mm²"
+                        elif 'Volume' in prop_type:
+                            test_prop.Value = 1000000.0  # 1000000 mm³
+                            analysis["base_unit"] = "mm³"
+                        elif 'Mass' in prop_type:
+                            test_prop.Value = 1.0
+                            analysis["base_unit"] = "kg"
+                        elif 'Angle' in prop_type:
+                            test_prop.Value = 1.5708  # π/2 radians
+                            analysis["base_unit"] = "rad"
+                        elif 'Speed' in prop_type or 'Velocity' in prop_type:
+                            test_prop.Value = 1000.0
+                            analysis["base_unit"] = "mm/s"
+                        elif 'Acceleration' in prop_type:
+                            test_prop.Value = 9810.0
+                            analysis["base_unit"] = "mm/s²"
+                        elif 'Force' in prop_type:
+                            test_prop.Value = 1.0
+                            analysis["base_unit"] = "N"
+                        elif 'Pressure' in prop_type:
+                            test_prop.Value = 1.0
+                            analysis["base_unit"] = "Pa"
+                        elif 'Density' in prop_type:
+                            test_prop.Value = 0.000001  # kg/mm³
+                            analysis["base_unit"] = "kg/mm³"
+                        elif 'Temperature' in prop_type:
+                            test_prop.Value = 293.15
+                            analysis["base_unit"] = "K"
+                        elif 'Time' in prop_type:
+                            test_prop.Value = 1.0
+                            analysis["base_unit"] = "s"
+                        elif 'Frequency' in prop_type:
+                            test_prop.Value = 1.0
+                            analysis["base_unit"] = "Hz"
+                        elif 'Energy' in prop_type:
+                            test_prop.Value = 1.0
+                            analysis["base_unit"] = "J"
+                        elif 'Power' in prop_type:
+                            test_prop.Value = 1.0
+                            analysis["base_unit"] = "W"
+
+                        print(f"  {prop_type}: Base unit = {analysis['base_unit']}")
+
+                    except Exception as e:
+                        print(f"  {prop_type}: Could not determine base unit - {e}")
+
+        except Exception as e:
+            print(f"  {prop_type}: Failed to create property - {e}")
+            analysis["test_successful"] = False
+
+        # Clean up
+        App.closeDocument("PropTypeTest")
+
+    except Exception as e:
+        print(f"Analysis failed for {prop_type}: {e}")
+
+    return analysis
+
+def categorize_property_type(prop_type: str) -> str:
+    """
+    Categorize property type based on its name
+    """
+    type_name = prop_type.lower()
+
+    if 'length' in type_name or 'distance' in type_name:
+        return 'Length'
+    elif 'area' in type_name:
+        return 'Area'
+    elif 'volume' in type_name:
+        return 'Volume'
+    elif 'mass' in type_name:
+        return 'Mass'
+    elif 'angle' in type_name or 'rotation' in type_name:
+        return 'Angle'
+    elif 'speed' in type_name or 'velocity' in type_name:
+        return 'Velocity'
+    elif 'acceleration' in type_name:
+        return 'Acceleration'
+    elif 'force' in type_name:
+        return 'Force'
+    elif 'pressure' in type_name:
+        return 'Pressure'
+    elif 'density' in type_name:
+        return 'Density'
+    elif 'temperature' in type_name:
+        return 'Temperature'
+    elif 'time' in type_name:
+        return 'Time'
+    elif 'frequency' in type_name:
+        return 'Frequency'
+    elif 'energy' in type_name:
+        return 'Energy'
+    elif 'power' in type_name:
+        return 'Power'
+    elif 'current' in type_name:
+        return 'ElectricCurrent'
+    elif 'potential' in type_name or 'voltage' in type_name:
+        return 'ElectricPotential'
+    elif 'quantity' in type_name:
+        return 'Quantity'
+    elif 'float' in type_name or 'integer' in type_name:
+        return 'Numeric'
+    elif 'string' in type_name:
+        return 'Text'
+    elif 'bool' in type_name:
+        return 'Boolean'
+    elif 'vector' in type_name:
+        return 'Vector'
+    elif 'placement' in type_name:
+        return 'Placement'
+    elif 'color' in type_name:
+        return 'Color'
+    elif 'material' in type_name:
+        return 'Material'
+    else:
+        return 'Other'
+
+def get_example_units(prop_type: str) -> List[str]:
+    """
+    Get example units for a property type
+    """
+    type_name = prop_type.lower()
+
+    if 'length' in type_name or 'distance' in type_name:
+        return ['mm', 'cm', 'm', 'in', 'ft']
+    elif 'area' in type_name:
+        return ['mm²', 'cm²', 'm²', 'in²', 'ft²']
+    elif 'volume' in type_name:
+        return ['mm³', 'cm³', 'm³', 'in³', 'ft³', 'l']
+    elif 'mass' in type_name:
+        return ['g', 'kg', 'lb', 'oz']
+    elif 'angle' in type_name:
+        return ['rad', 'deg', '°']
+    elif 'speed' in type_name or 'velocity' in type_name:
+        return ['mm/s', 'm/s', 'km/h', 'mph', 'ft/s']
+    elif 'acceleration' in type_name:
+        return ['mm/s²', 'm/s²', 'ft/s²']
+    elif 'force' in type_name:
+        return ['N', 'kN', 'lbf', 'kgf']
+    elif 'pressure' in type_name:
+        return ['Pa', 'kPa', 'MPa', 'bar', 'psi']
+    elif 'density' in type_name:
+        return ['kg/m³', 'g/cm³', 'kg/mm³', 'lb/ft³']
+    elif 'temperature' in type_name:
+        return ['K', '°C', '°F']
+    else:
+        return []
+
+def save_to_file(data: Dict[str, Any], filename: str = "freecad_quantity_types.json"):
+    """
+    Save the analysis results to a JSON file
+    """
+    try:
+        import os
+
+        # Save to FreeCAD user directory
+        user_dir = App.getUserAppDataDir()
+        output_path = os.path.join(user_dir, filename)
+
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+
+        print(f"\n=== Output Saved ===")
+        print(f"File: {output_path}")
+        print(f"Size: {len(json.dumps(data))} characters")
+
+        return output_path
+
+    except Exception as e:
+        print(f"Failed to save file: {e}")
+        return None
+
+def filter_clean_quantity_types(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Filter quantity types to identify clean, well-implemented ones suitable for CalcsLive integration
+
+    Clean criteria:
+    - Must be a quantity (has units)
+    - Must have simple, recognizable base unit (not complex Unit expressions)
+    - Must have successful test creation
+    - Must be commonly used in engineering
+    """
+    clean_types = {}
+    problematic_types = {}
+
+    # Define patterns for problematic base units
+    problematic_patterns = [
+        "Unit:",  # Complex unit expressions like "Unit: A (0,0,0,1,0,0,0,0)"
+        "(0,0,0",  # Dimensional analysis notation
+        "mm^2*kg",  # Complex derived units
+        "s^3*A",   # Complex electrical units
+    ]
+
+    # Define essential clean types we want to prioritize
+    essential_types = [
+        "App::PropertyLength",
+        "App::PropertyDistance",
+        "App::PropertyArea",
+        "App::PropertyVolume",
+        "App::PropertyMass",
+        "App::PropertyAngle",
+        "App::PropertySpeed",
+        "App::PropertyAcceleration",
+        "App::PropertyForce",
+        "App::PropertyPressure",
+        "App::PropertyDensity",
+        "App::PropertyTemperature",
+        "App::PropertyTime",
+        "App::PropertyFrequency",
+        "App::PropertyPower"
+    ]
+
+    for prop_type, analysis in data.get('property_types', {}).items():
+        is_clean = True
+        issues = []
+
+        # Must be quantity
+        if not analysis.get('is_quantity', False):
+            is_clean = False
+            issues.append("Not a quantity type")
+
+        # Must have successful test
+        if not analysis.get('test_successful', False):
+            is_clean = False
+            issues.append("Failed property creation test")
+
+        # Check base unit quality
+        base_unit = analysis.get('base_unit', '')
+        if base_unit:
+            for pattern in problematic_patterns:
+                if pattern in base_unit:
+                    is_clean = False
+                    issues.append(f"Complex base unit: {base_unit}")
+                    break
+        else:
+            if analysis.get('is_quantity', False):
+                is_clean = False
+                issues.append("Missing base unit")
+
+        # Add quality rating
+        analysis_copy = analysis.copy()
+        analysis_copy['is_essential'] = prop_type in essential_types
+        analysis_copy['quality_issues'] = issues
+        analysis_copy['is_clean'] = is_clean
+
+        if is_clean:
+            clean_types[prop_type] = analysis_copy
+        else:
+            problematic_types[prop_type] = analysis_copy
+
+    return {
+        'clean_types': clean_types,
+        'problematic_types': problematic_types,
+        'summary': {
+            'total_clean': len(clean_types),
+            'total_problematic': len(problematic_types),
+            'essential_clean': len([t for t in clean_types.keys() if t in essential_types])
+        }
+    }
+
+def print_summary(data: Dict[str, Any]):
+    """
+    Print a summary of the analysis results with clean/problematic separation
+    """
+    print("\n=== SUMMARY ===")
+    print(f"FreeCAD Version: {data.get('freecad_version', 'Unknown')}")
+    print(f"Total Property Types: {data.get('total_types', 0)}")
+
+    # Filter clean vs problematic types
+    filtered_results = filter_clean_quantity_types(data)
+
+    print(f"\n=== QUALITY ANALYSIS ===")
+    print(f"✅ Clean Types: {filtered_results['summary']['total_clean']}")
+    print(f"❌ Problematic Types: {filtered_results['summary']['total_problematic']}")
+    print(f"⭐ Essential Clean Types: {filtered_results['summary']['essential_clean']}")
+
+    # Count by category
+    categories = {}
+    quantity_types = 0
+
+    for prop_type, analysis in data.get('property_types', {}).items():
+        category = analysis.get('category', 'Unknown')
+        if category is None:
+            category = 'Unknown'
+        categories[category] = categories.get(category, 0) + 1
+
+        if analysis.get('is_quantity', False):
+            quantity_types += 1
+
+    print(f"\nQuantity Types (with units): {quantity_types}")
+    print(f"\nBy Category:")
+    for category, count in sorted(categories.items(), key=lambda x: (x[0] or 'Unknown', x[1])):
+        print(f"  {category}: {count}")
+
+    # Show clean types with their base units
+    print(f"\n=== ✅ CLEAN QUANTITY TYPES (Ready for CalcsLive) ===")
+    clean_types = filtered_results['clean_types']
+    for prop_type in sorted(clean_types.keys()):
+        analysis = clean_types[prop_type]
+        essential_mark = "⭐" if analysis.get('is_essential', False) else "  "
+        base_unit = analysis.get('base_unit', 'Unknown')
+        category = analysis.get('category', 'Unknown')
+        print(f"{essential_mark} {prop_type:<35} | {base_unit:<12} | {category}")
+
+    # Show problematic types with issues
+    print(f"\n=== ❌ PROBLEMATIC TYPES (Issues Found) ===")
+    problematic_types = filtered_results['problematic_types']
+    for prop_type in sorted(problematic_types.keys()):
+        analysis = problematic_types[prop_type]
+        issues = ', '.join(analysis.get('quality_issues', []))
+        print(f"   {prop_type:<35} | Issues: {issues}")
+
+    # List base units from clean types only
+    clean_base_units = set()
+    for prop_type, analysis in clean_types.items():
+        if analysis.get('base_unit'):
+            clean_base_units.add(analysis['base_unit'])
+
+    print(f"\n=== CLEAN BASE UNITS ({len(clean_base_units)}) ===")
+    for unit in sorted(clean_base_units):
+        print(f"  {unit}")
+
+    return filtered_results
+
+# Main execution
+if __name__ == "__main__":
+    try:
+        print("Starting FreeCAD Quantity Types extraction...")
+
+        # Extract all property types
+        results = extract_all_property_types()
+
+        # Save complete results to file
+        output_file = save_to_file(results)
+
+        # Print summary with filtering
+        filtered_results = print_summary(results)
+
+        # Save filtered clean types for CalcsLive reference
+        clean_types_data = {
+            "timestamp": results.get("timestamp"),
+            "freecad_version": results.get("freecad_version"),
+            "filtering_notes": "Filtered for CalcsLive integration - only clean, well-implemented types",
+            "total_clean_types": filtered_results['summary']['total_clean'],
+            "essential_types_available": filtered_results['summary']['essential_clean'],
+            "clean_types": filtered_results['clean_types']
+        }
+
+        clean_output_file = save_to_file(clean_types_data, "freecad_clean_quantity_types.json")
+
+        # Print clean types JSON for immediate reference
+        print(f"\n=== CLEAN TYPES JSON (For CalcsLive Integration) ===")
+        print(json.dumps(clean_types_data, indent=2))
+
+        print(f"\n=== EXTRACTION COMPLETE ===")
+        print(f"Complete results: {output_file}")
+        print(f"Clean types only: {clean_output_file}")
+        print(f"\n📋 Ready for CalcsLive integration with {filtered_results['summary']['total_clean']} clean quantity types")
+        print(f"⭐ {filtered_results['summary']['essential_clean']} essential types available for core engineering calculations")
+
+    except Exception as e:
+        print(f"Extraction failed: {e}")
+        import traceback
+        traceback.print_exc()
