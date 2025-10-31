@@ -2,8 +2,9 @@
 # FC_CL_Bridge.FCMacro
 # Pure HTTP bridge between FreeCAD VarSet and CalcsLive.
 # - Serves a minimal HTTP API on http://127.0.0.1:8787
-#     GET  /calcslive/export  -> export VarSet parameters (values + units)
-#     POST /calcslive/import  -> update VarSet parameters from CalcsLive
+#     GET  /calcslive/export      -> export VarSet parameters (values + units)
+#     GET  /calcslive/clean-units -> export clean quantity types for CalcsLive integration
+#     POST /calcslive/import      -> update VarSet parameters from CalcsLive
 #
 # Notes:
 # - VarSet object is the single source of truth (no additional storage)
@@ -444,6 +445,111 @@ def apply_updates(updates: list, doc=None, allow_override_expression=False):
     return {"applied": applied, "errors": errors}
 
 # -----------------------------
+# Clean Units Data Extraction
+# -----------------------------
+
+def get_clean_units_data():
+    """
+    Generate clean units data for CalcsLive integration.
+    Self-contained analysis without relying on external macros.
+
+    Returns structured data with:
+    - clean_units_list: All displayable units for conversion validation
+    - unit_si_to_kind: Base units to categories mapping for pqKind detection
+    """
+    from datetime import datetime
+
+    try:
+        # Embedded property analysis - simplified version
+        clean_data = analyze_clean_property_types()
+
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "freecad_version": App.Version(),
+            "total_clean_types": len(clean_data["unit_si_to_kind"]),
+            "clean_units_list": clean_data["clean_units_list"],
+            "unit_si_to_kind": clean_data["unit_si_to_kind"],
+            "generation_method": "embedded_analysis",
+            "source": "FC_CL_Bridge_live"
+        }
+
+    except Exception as e:
+        print(f"[FC_CL_Bridge] Clean units extraction failed: {e}")
+        # Return static fallback data
+        return get_static_clean_units_fallback()
+
+def analyze_clean_property_types():
+    """
+    Embedded analysis of FreeCAD clean property types.
+    Based on ExtractQuantityTypes.FCMacro but simplified for API use.
+    """
+
+    # Known clean property types from analysis (static for reliability)
+    clean_property_data = {
+        "App::PropertyLength": {"category": "Length", "base_unit": "mm", "example_units": ["mm", "cm", "m", "in", "ft"]},
+        "App::PropertyDistance": {"category": "Length", "base_unit": "mm", "example_units": ["mm", "cm", "m", "in", "ft"]},
+        "App::PropertyArea": {"category": "Area", "base_unit": "mm²", "example_units": ["mm²", "cm²", "m²", "in²", "ft²"]},
+        "App::PropertyVolume": {"category": "Volume", "base_unit": "mm³", "example_units": ["mm³", "cm³", "m³", "in³", "ft³", "l"]},
+        "App::PropertyMass": {"category": "Mass", "base_unit": "kg", "example_units": ["g", "kg", "lb", "oz"]},
+        "App::PropertyAngle": {"category": "Angle", "base_unit": "rad", "example_units": ["rad", "deg", "°"]},
+        "App::PropertySpeed": {"category": "Velocity", "base_unit": "mm/s", "example_units": ["mm/s", "m/s", "km/h", "mph", "ft/s"]},
+        "App::PropertyAcceleration": {"category": "Acceleration", "base_unit": "mm/s²", "example_units": ["mm/s²", "m/s²", "ft/s²"]},
+        "App::PropertyForce": {"category": "Force", "base_unit": "N", "example_units": ["N", "kN", "lbf", "kgf"]},
+        "App::PropertyPressure": {"category": "Pressure", "base_unit": "Pa", "example_units": ["Pa", "kPa", "MPa", "bar", "psi"]},
+        "App::PropertyDensity": {"category": "Density", "base_unit": "kg/mm³", "example_units": ["kg/m³", "g/cm³", "kg/mm³", "lb/ft³"]},
+        "App::PropertyTemperature": {"category": "Temperature", "base_unit": "K", "example_units": ["K", "°C", "°F"]},
+        "App::PropertyTime": {"category": "Time", "base_unit": "s", "example_units": ["s"]},
+        "App::PropertyFrequency": {"category": "Frequency", "base_unit": "Hz", "example_units": ["Hz"]},
+        "App::PropertyPower": {"category": "Power", "base_unit": "W", "example_units": ["W"]}
+    }
+
+    # Build unit_si_to_kind mapping
+    unit_si_to_kind = {}
+    clean_units_set = set()
+
+    for property_type, data in clean_property_data.items():
+        category = data["category"]
+        base_unit = data["base_unit"]
+        example_units = data.get("example_units", [])
+
+        # Add base unit to mapping
+        if base_unit:
+            unit_si_to_kind[base_unit] = category
+
+        # Add all example units to clean units list
+        clean_units_set.update(example_units)
+
+    return {
+        "unit_si_to_kind": unit_si_to_kind,
+        "clean_units_list": sorted(list(clean_units_set))
+    }
+
+def get_static_clean_units_fallback():
+    """
+    Static fallback data when dynamic analysis fails.
+    """
+    from datetime import datetime
+
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "freecad_version": App.Version(),
+        "total_clean_types": 15,
+        "clean_units_list": [
+            "deg", "ft", "g", "Hz", "in", "K", "kg", "kg/m³", "kg/mm³", "kN", "l",
+            "lb", "lbf", "m", "mm", "mm/s", "mm/s²", "mm²", "mm³", "N", "Pa", "rad",
+            "s", "W", "°", "°C", "°F"
+        ],
+        "unit_si_to_kind": {
+            "mm": "Length", "mm²": "Area", "mm³": "Volume", "kg": "Mass",
+            "rad": "Angle", "mm/s": "Velocity", "mm/s²": "Acceleration",
+            "N": "Force", "Pa": "Pressure", "kg/mm³": "Density",
+            "K": "Temperature", "s": "Time", "Hz": "Frequency", "W": "Power"
+        },
+        "generation_method": "static_fallback",
+        "source": "hardcoded_backup"
+    }
+
+# -----------------------------
 # HTTP Server
 # -----------------------------
 
@@ -473,6 +579,12 @@ class HttpHandler(BaseHTTPRequestHandler):
             try:
                 mapping_data = get_pq_mappings(App.ActiveDocument)
                 self._send_json(200, mapping_data)
+            except Exception as e:
+                self._send_json(500, {"error": str(e)})
+        elif self.path == "/calcslive/clean-units":
+            try:
+                clean_units_data = get_clean_units_data()
+                self._send_json(200, clean_units_data)
             except Exception as e:
                 self._send_json(500, {"error": str(e)})
         else:
