@@ -371,6 +371,17 @@ def export_payload(doc=None):
                     else:
                         display_unit = "?"
 
+                # Get FreeCAD property type (e.g., "App::PropertyLength")
+                try:
+                    prop_type = varset.getTypeIdOfProperty(prop_name)
+                except Exception as e:
+                    prop_type = None
+
+                # Extract kind from property type (App::PropertyLength → Length)
+                kind = None
+                if prop_type and "::" in prop_type and "Property" in prop_type:
+                    kind = prop_type.split("Property")[1] 
+
                 # Enhanced data structure matching varset_data_extractor.py
                 result["params"].append({
                     "path": f"{varset.Name}:{varset.Label}/{prop_name}",  # Enhanced path format
@@ -380,6 +391,7 @@ def export_payload(doc=None):
                     "readonly": readonly,                                # Based on expression
                     "value_si": value_si,                               # SI base value
                     "unit_si": unit_si,                                 # SI unit
+                    "kind": kind,                                       # FreeCAD category kind
                     "display": {                                        # Display object
                         "value": display_value,                         # User's display value
                         "unit": display_unit                            # User's display unit
