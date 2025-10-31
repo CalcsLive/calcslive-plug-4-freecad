@@ -241,7 +241,14 @@ def has_expression(obj, prop):
     return False
 
 def write_path(doc, path, value, unit=None, kind="Length", allow_override_expression=False):
-    obj_name, prop = path.split("/", 1)
+    # Handle enhanced path format: "VarSet:PQs/Base_H" -> obj_name="VarSet", prop="Base_H"
+    if ":" in path:
+        obj_name_part, prop = path.split("/", 1)
+        obj_name = obj_name_part.split(":")[0]  # Extract "VarSet" from "VarSet:PQs"
+    else:
+        # Fallback to simple format: "VarSet/Base_H"
+        obj_name, prop = path.split("/", 1)
+
     obj = doc.getObject(obj_name)
     if obj is None:
         raise ValueError(f"Object not found: {obj_name}")
