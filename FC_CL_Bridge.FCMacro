@@ -94,28 +94,16 @@ def get_pq_mappings(doc=None):
         except (json.JSONDecodeError, TypeError):
             print("[FC_CL_Bridge] Warning: Invalid mapping JSON in VarSet, returning default structure")
 
-    # Return default structure
+    # Return default structure (simplified - no articles array)
     return {
         "docVersion": "0.2",
         "unitsSchema": "UserPreferred",
-        "params": [],
-        "articles": []
+        "articleId": None,
+        "articleTitle": None,
+        "lastUpdated": None,
+        "paramMappings": {}
     }
 
-def set_article_info(article_id, article_title=None, doc=None):
-    """Store ArticleID and ArticleTitle in VarSet CalcsLive group."""
-    varset = get_varset_object(doc)
-
-    # Create or update the ArticleID property in CalcsLive group
-    if not hasattr(varset, 'ArticleID'):
-        varset.addProperty("App::PropertyString", "ArticleID", "CalcsLive", "CalcsLive article identifier")
-    varset.ArticleID = article_id
-
-    # Create or update the ArticleTitle property in CalcsLive group
-    if article_title and not hasattr(varset, 'ArticleTitle'):
-        varset.addProperty("App::PropertyString", "ArticleTitle", "CalcsLive", "CalcsLive article title")
-    if article_title:
-        varset.ArticleTitle = article_title
 
     # Force document recompute to ensure properties are saved
     if doc:
@@ -287,9 +275,24 @@ def export_payload(doc=None):
             "error": str(e)
         }
 
-    # Extract ArticleID and ArticleTitle from VarSet properties
-    article_id = getattr(varset, 'ArticleID', None)
-    article_title = getattr(varset, 'ArticleTitle', None)
+    # Extract ArticleID and ArticleTitle from CalcsLiveMappings JSON
+    article_id = None
+    article_title = None
+
+    try:
+        # Get CalcsLiveMappings property and parse JSON
+        mappings_json = getattr(varset, 'CalcsLiveMappings', None)
+        if mappings_json:
+            import json
+            mappings_data = json.loads(mappings_json)
+            # Simplified structure: direct access to articleId/articleTitle
+            article_id = mappings_data.get('articleId')
+            article_title = mappings_data.get('articleTitle')
+    except Exception as e:
+        # If JSON parsing fails, no fallback - simplified structure only
+        print(f"[FC_CL_Bridge] Warning: Could not parse CalcsLiveMappings JSON: {e}")
+        article_id = None
+        article_title = None
 
     result = {
         "docName": doc.Label if doc else None,
@@ -304,8 +307,7 @@ def export_payload(doc=None):
         'Label', 'Label2', 'Name', 'Visibility', 'Content', 'ExpressionEngine',
         'Document', 'Module', 'TypeId', 'ID', 'State', 'ViewObject', 'FullName',
         'InList', 'OutList', 'Parents', 'MemSize', 'MustExecute', 'Removing',
-        'NoTouch', 'OldLabel', 'ArticleID', 'ArticleTitle', 'ArticleURL',
-        'Base__ArticleID', 'Base__ArticleTitle', 'ExportVars'
+        'NoTouch', 'OldLabel', 'ExportVars'
     }
     
      # Build expression map once
@@ -630,18 +632,6 @@ class HttpHandler(BaseHTTPRequestHandler):
                 # Save mapping data to VarSet
                 result = set_pq_mappings(data, App.ActiveDocument)
                 self._send_json(200, result)
-            except Exception as e:
-                self._send_json(500, {"error": str(e)})
-        elif self.path == "/calcslive/article-meta":
-            try:
-                # Set ArticleID and ArticleTitle in VarSet
-                article_id = data.get("articleId")
-                article_title = data.get("articleTitle")
-                if article_id:
-                    set_article_info(article_id, article_title, App.ActiveDocument)
-                    self._send_json(200, {"success": True, "articleId": article_id, "articleTitle": article_title})
-                else:
-                    self._send_json(400, {"error": "articleId is required"})
             except Exception as e:
                 self._send_json(500, {"error": str(e)})
         else:
