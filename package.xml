@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+    <name>CalcsLivePlug</name>
+    <description>CalcsLive calculation capability plug for FreeCAD - provides HTTP interface for web-based CalcsLive integration</description>
+    <version>1.0.0</version>
+    <date>2025-11-03</date>
+    <author>
+        <name>CalcsLive Team</name>
+        <email>don.wen@calcs.live</email>
+    </author>
+    <maintainer>
+        <name>CalcsLive Team</name>
+        <email>don.wen@calcs.live</email>
+    </maintainer>
+    <license file="LICENSE">MIT</license>
+    <url type="website">https://www.calcs.live</url>
+    <url type="repository">https://github.com/CalcsLive/calcslive-plug-4-freecad</url>
+    <url type="readme">https://github.com/CalcsLive/calcslive-plug-4-freecad/blob/master/README.md</url>
+    <content>
+        <workbench>
+            <classname>CalcsLivePlug</classname>
+            <subdirectory>./</subdirectory>
+        </workbench>
+    </content>
+    <depend>
+        <FreeCAD min="1.0" max="1.1"/>
+    </depend>
+    <tag>calcslive</tag>
+    <tag>calculation</tag>
+    <tag>unit aware</tag>
+    <tag>unit awareness</tag>
+    <tag>unit conversion automated</tag>
+    <tag>plug</tag>
+    <tag>http</tag>
+    <tag>api</tag>
+    <tag>web</tag>
+</package>

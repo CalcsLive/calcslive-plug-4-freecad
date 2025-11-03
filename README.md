@@ -1,14 +1,23 @@
-# CalcsLive FreeCAD Workbench
+# CalcsLive Plug for FreeCAD
 
-Official FreeCAD workbench for bi-directional integration with CalcsLive unit-aware calculations.
+**Auto-starting HTTP server plug for seamless CalcsLive integration with FreeCAD parametric models.**
 
 ## Overview
 
-This workbench enables seamless parameter synchronization between FreeCAD parametric models and CalcsLive calculations. Users can extract dimensional parameters from their 3D models and connect them to **composable, unit-aware engineering calculations** with automatic unit conversion.
+CalcsLivePlug provides a **plug interface** for CalcsLive calculation capability in FreeCAD. It automatically starts an HTTP server when FreeCAD loads, enabling **real-time bi-directional synchronization** between FreeCAD parametric models and CalcsLive's **composable, unit-aware engineering calculations**.
+
+### 🔌 Plug Architecture
+
+The "plug" concept means CalcsLive calculation capability is **plugged into** FreeCAD through a lightweight HTTP interface:
+
+- **Auto-start**: HTTP server starts automatically when FreeCAD loads
+- **Always available**: Web dashboards can connect instantly without manual setup
+- **Background operation**: Runs silently in the background until needed
+- **Manual controls**: Plug In/Unplug CalcsLive capability as needed
 
 ### 🧩 Composable Engineering Calculations
 
-The true power of CalcsLive integration lies in **composable calculations** - a single complex FreeCAD model can be served by multiple specialized calculations, all unit-aware and live-connected:
+Connect your FreeCAD models to **multiple specialized calculations**, all unit-aware and live-connected:
 
 ```
 Complex FreeCAD Model
@@ -19,152 +28,176 @@ Complex FreeCAD Model
     └── Manufacturing → tolerances, machining parameters
 ```
 
-Each calculation is **independently maintained**, **reusable across projects**, and **automatically unit-converted** - enabling true collaborative engineering workflows.
-
-### 🚀 Massive Impact Potential
-
-**FreeCAD's comprehensive workbench ecosystem** (CAD, CAE, CAM, FEA, Arch, Ship, etc.) combined with CalcsLive's composable calculations creates **unprecedented engineering integration**:
-
-- **Part Design + Structural Calcs** → Live stress analysis during modeling
-- **Assembly + Motion Calcs** → Kinematic analysis with real-time updates
-- **Arch + Building Physics** → Energy analysis integrated with architectural design
-- **CAM + Machining Calcs** → Toolpath optimization with cutting force calculations
-- **Ship + Naval Architecture** → Hull design with stability and hydrodynamic calculations
-- **FEA + Advanced Analysis** → Mesh-independent parametric studies
-- **Sketcher + Constraint Solving** → Mathematical relationships between geometric constraints
-
-**Every FreeCAD workbench** becomes a potential **calculation-enhanced design environment**.
+Each calculation is **independently maintained**, **reusable across projects**, and **automatically unit-converted**.
 
 ## Features
 
-- **🔗 Connect to CalcsLive**: Open CalcsLive development server in browser
-- **📊 Parameter Dashboard**: Web-based parameter mapping interface
-- **📋 Extract Parameters**: Discover all dimensional parameters from active FreeCAD model
-- **ℹ️ Status Information**: Show workbench status and available commands
+### ✅ **Auto-Start HTTP Server**
+- Automatically starts when FreeCAD loads
+- No manual macro execution required
+- Ready for web dashboard connections
+
+### ✅ **Complete API Compatibility**
+- **100% feature parity** with original FC_CL_Bridge.FCMacro
+- All original endpoints: export, import, mapping, clean-units
+- Enhanced with plug status monitoring
+
+### ✅ **Manual Controls**
+- **Plug In CalcsLive** - Start HTTP server manually
+- **Unplug CalcsLive** - Stop HTTP server cleanly
+- **Plug Status** - Check server status and functionality
+
+### ✅ **Proper Server Management**
+- Clean shutdown with socket cleanup
+- Port availability checking
+- Error handling and status reporting
 
 ## Installation
 
-1. Copy this entire `CalcsLiveWorkbench` folder to your FreeCAD Mod directory:
-   - **Windows**: `C:\Users\[username]\AppData\Roaming\FreeCAD\Mod\`
+1. **Copy the entire `CalcsLivePlug` folder** to your FreeCAD Mod directory:
+   - **Windows**: `C:\\Users\\[username]\\AppData\\Roaming\\FreeCAD\\Mod\\`
    - **macOS**: `~/Library/Application Support/FreeCAD/Mod/`
    - **Linux**: `~/.local/share/FreeCAD/Mod/`
 
-2. Restart FreeCAD
+2. **Restart FreeCAD**
 
-3. Select "CalcsLive" from the workbench dropdown
+3. **Verify auto-start**: Check FreeCAD Report View for:
+   ```
+   [CalcsLivePlug] ✓ CalcsLive plugged in successfully!
+   [CalcsLivePlug] HTTP endpoints are now available
+   ```
+
+4. **Test the connection**: Visit `http://127.0.0.1:8787/calcslive/status`
 
 ## Usage
 
-### Quick Start
-1. **Open or create a FreeCAD model** with dimensional parameters
-2. **Switch to CalcsLive workbench** from dropdown menu
-3. **Click "Connect to CalcsLive"** to open the web interface
-4. **Click "Extract Parameters"** to discover model parameters
-5. **Click "Open Dashboard"** to map parameters to calculations
+### Automatic Operation (Recommended)
 
-### Commands
+The plug **auto-starts when FreeCAD loads** - no user action required!
 
-| Command | Shortcut | Description |
-|---------|----------|-------------|
-| Connect to CalcsLive | `Ctrl+Shift+C` | Open CalcsLive connection page |
-| Open Dashboard | `Ctrl+Shift+D` | Open parameter mapping interface |
-| Extract Parameters | `Ctrl+Shift+E` | Show all dimensional parameters |
-| Show Status | `Ctrl+Shift+I` | Display workbench information |
+1. **Open FreeCAD** with a model containing VarSet parameters labelled PQs
+2. **HTTP server is automatically available** at `http://127.0.0.1:8787`
+3. **Connect your CalcsLive dashboard** to the running server
+4. **Parameters sync automatically** between FreeCAD and CalcsLive
+
+### Manual Controls
+
+Switch to the **"CalcsLive Plug"** workbench for manual control:
+
+| Command | Description |
+|---------|-------------|
+| **Plug In CalcsLive** | Start HTTP server manually |
+| **Unplug CalcsLive** | Stop HTTP server cleanly |
+| **Plug Status** | Check server status and functionality |
+
+## API Endpoints
+
+The CalcsLivePlug HTTP server provides **6 endpoints** for complete CalcsLive integration:
+
+### **Data Exchange**
+- `GET /calcslive/export` - Export VarSet parameters with full metadata
+- `POST /calcslive/import` - Update VarSet parameters from CalcsLive
+
+### **Mapping Management**
+- `GET /calcslive/mapping` - Get parameter mapping configuration
+- `POST /calcslive/mapping` - Save parameter mapping configuration
+
+### **System Information**
+- `GET /calcslive/clean-units` - Get clean units data for validation
+- `GET /calcslive/status` - Check plug status and available endpoints
+
+### **Example Usage**
+
+```bash
+# Check if plug is running
+curl http://127.0.0.1:8787/calcslive/status
+
+# Export current model parameters
+curl http://127.0.0.1:8787/calcslive/export
+
+# Get available units for validation
+curl http://127.0.0.1:8787/calcslive/clean-units
+```
 
 ## Architecture
 
-### CalcsLive-Centric Design (80/20 Distribution)
-- **80%**: Modern web interface (Nuxt 3, Vue 3, TipTap, Tailwind CSS)
-- **20%**: Minimal FreeCAD UI (toolbar commands + basic dialogs)
+### **Plug Design Philosophy**
+- **Minimal footprint**: Lightweight HTTP server with essential functionality
+- **Auto-start capability**: No manual intervention required
+- **Proper lifecycle**: Clean startup, shutdown, and error handling
+- **Status monitoring**: Always know if the plug is working
 
-This approach leverages CalcsLive's sophisticated web infrastructure while keeping FreeCAD integration lightweight and maintainable.
+### **Key Components**
 
-### Key Components
+- **`InitGui.py`**: Auto-start initialization and workbench registration
+- **`calcslive-freecad-plug-server.py`**: Complete HTTP server with all endpoints
+- **`package.xml`**: Addon metadata for FreeCAD addon manager
+- **`__init__.py`**: Basic addon initialization
 
-- **`InitGui.py`**: Workbench registration following official FreeCAD pattern
-- **`CalcsLiveTools.py`**: Command definitions with proven working patterns
-- **`calcsliveutils/`**: Utility modules for toolbar and menu initialization
-- **`core/`**: Core functionality modules for parameter extraction and sync
-- **`commands/`**: Individual command implementations
-- **`ui/`**: User interface components and dialogs
+### **Differences from Original Workbench**
+
+| Aspect | Original Workbench | New CalcsLivePlug |
+|--------|-------------------|-------------------|
+| **Startup** | Manual macro execution | Automatic server start |
+| **UI** | Full workbench with commands | Minimal plug controls |
+| **Focus** | User interface and workflows | Background HTTP API |
+| **Scope** | Complete FreeCAD integration | Focused server functionality |
 
 ## Comprehensive Workbench Integration Examples
 
 ### 🛩️ Aircraft Wing Design (Part Design + FEA + CAM)
 ```
-FreeCAD Wing Model (wing-section.FCStd)
-    ├── Aerodynamics Calc (Part Design) → lift, drag, pressure distribution
-    ├── Structural FEA (FEA Workbench) → stress analysis, deflection, safety factors
-    ├── Weight & Balance (Assembly) → mass properties, CG location
+FreeCAD Wing Model (wing-section.FCStd) + CalcsLivePlug
+    ├── Aerodynamics Calc → lift, drag, pressure distribution
+    ├── Structural FEA → stress analysis, deflection, safety factors
+    ├── Weight & Balance → mass properties, CG location
     └── Manufacturing CAM → tooling requirements, machining strategies
 ```
 
 ### 🏗️ Building Design (Arch + Draft + Structure)
 ```
-FreeCAD Building Model (office-building.FCStd)
-    ├── Energy Analysis (Arch) → thermal loads, HVAC sizing
-    ├── Structural Design (Draft/Part) → beam sizing, foundation loads
+FreeCAD Building Model (office-building.FCStd) + CalcsLivePlug
+    ├── Energy Analysis → thermal loads, HVAC sizing
+    ├── Structural Design → beam sizing, foundation loads
     ├── Building Physics → daylighting, acoustics, fire safety
     └── Construction Sequencing → scheduling, material takeoffs
 ```
 
 ### ⚙️ Mechanical Assembly (Assembly + Motion + FEA)
 ```
-FreeCAD Robot Assembly (6-axis-robot.FCStd)
-    ├── Kinematic Analysis (Assembly) → workspace, singularities
+FreeCAD Robot Assembly (6-axis-robot.FCStd) + CalcsLivePlug
+    ├── Kinematic Analysis → workspace, singularities
     ├── Dynamic Simulation → torque requirements, acceleration limits
     ├── Structural FEA → deflection under load, resonance analysis
     └── Servo Sizing → motor selection, gear ratios, power consumption
 ```
 
-### 🚢 Ship Design (Ship + FEA + Mesh)
-```
-FreeCAD Vessel Design (cargo-ship.FCStd)
-    ├── Hull Hydrostatics (Ship) → displacement, stability, seakeeping
-    ├── Structural Analysis (FEA) → hull strength, fatigue life
-    ├── Propulsion Design → engine sizing, propeller optimization
-    └── Cargo Planning → loading sequences, trim optimization
-```
+## Benefits of the Plug Architecture
 
-### 🏭 Manufacturing Process (CAM + Part Design + Material)
-```
-FreeCAD Machined Part (turbine-blade.FCStd)
-    ├── Machining Strategy (CAM) → toolpaths, cutting parameters
-    ├── Tool Selection → cutting forces, surface finish, tool life
-    ├── Fixture Design → clamping forces, deflection analysis
-    └── Quality Control → tolerances, measurement strategies
-```
+### 🚀 **Always Ready**
+- HTTP server starts with FreeCAD automatically
+- Web dashboards can connect instantly
+- No workflow interruption for manual setup
 
-## Benefits of Composable Engineering
+### 🔧 **Lightweight Integration**
+- Minimal impact on FreeCAD startup time
+- Background operation until needed
+- Clean resource management
 
-### 🎯 **Specialization**
-- Domain experts maintain their calculation areas
-- Aerodynamics team owns lift/drag calculations
-- Structures team owns stress/deflection calculations
-- Independent development and validation
+### 🌐 **Web-First Design**
+- Optimized for modern web dashboard integration
+- RESTful API following web standards
+- CORS support for browser applications
 
-### 🔄 **Reusability**
-- Structural calculations work across multiple aircraft models
-- Heat exchanger calcs apply to various thermal systems
-- Material properties shared across all projects
-- Build calculation libraries over time
+### 🔄 **Reliable Operation**
+- Proper server lifecycle management
+- Error handling and status reporting
+- Clean shutdown with port cleanup
 
-### 🤝 **Collaboration**
-- Aerodynamics updates → instant structural team feedback
-- Material changes → automatic cost and weight updates
-- Manufacturing constraints → design optimization loops
-- Real-time collaborative engineering
-
-### 📈 **Evolution**
-- Improve one calculation without breaking others
-- Add new calculation types (fatigue, optimization)
-- Upgrade calculation methods independently
-- Maintain calculation version history
-
-## 🌍 Revolutionary Impact on FreeCAD Ecosystem
+## Revolutionary Impact on FreeCAD Ecosystem
 
 ### Transforming Every Workbench
-CalcsLive integration **amplifies every FreeCAD workbench** with unit-aware intelligence:
+CalcsLivePlug **amplifies every FreeCAD workbench** with unit-aware calculation capability:
 
 | FreeCAD Workbench | CalcsLive Enhancement | Impact |
 |-------------------|----------------------|---------|
@@ -174,8 +207,6 @@ CalcsLive integration **amplifies every FreeCAD workbench** with unit-aware inte
 | **CAM** | Cutting forces, tool life | Optimized manufacturing strategies |
 | **Ship** | Naval architecture calcs | Professional vessel design |
 | **FEA** | Parametric studies | Mesh-independent optimization |
-| **Draft** | Engineering calculations | Technical drawing validation |
-| **Sketcher** | Constraint mathematics | Geometric relationship solving |
 
 ### Cross-Workbench Workflows
 **Unprecedented integration** between traditionally separate domains:
@@ -184,70 +215,96 @@ CalcsLive integration **amplifies every FreeCAD workbench** with unit-aware inte
 - **Naval → Structural → Manufacturing**: Ship design through production
 - **Robotics → Controls → Manufacturing**: Mechatronic system development
 
-### Professional Engineering Transformation
-- **Design-Analysis Loops**: Instant feedback during creative design process
-- **Multi-Physics Integration**: Thermal-structural-fluid coupled analysis
-- **Manufacturing-Aware Design**: DFM calculations integrated with geometry
-- **Regulatory Compliance**: Built-in safety factors and engineering codes
+## Troubleshooting
+
+### Common Issues
+
+**Server not starting:**
+```bash
+# Check FreeCAD Report View for error messages
+# Look for [CalcsLivePlug] messages
+
+# Verify port is available
+curl http://127.0.0.1:8787/calcslive/status
+```
+
+**Port already in use:**
+```bash
+# Check what's using port 8787
+netstat -an | findstr 8787
+
+# Use "Unplug CalcsLive" then "Plug In CalcsLive" to restart
+```
+
+**Can't connect from browser:**
+- Verify FreeCAD is running with a document open
+- Check Windows Firewall settings for port 8787
+- Try `http://localhost:8787/calcslive/status` instead
 
 ## Development
 
-### Architecture Pattern
-Follows the exact same pattern as FreeCAD's Draft workbench:
-- Uses `appendToolbar()` method for toolbar registration
-- Commands defined at module scope for proper FreeCAD recognition
-- Modular structure with separate utilities and core functionality
+### Server Customization
+The server implementation in `calcslive-freecad-plug-server.py` can be customized:
 
-### Testing
-1. Individual commands tested and proven working
-2. Parameter extraction successfully discovers dimensional properties
-3. Web interface integration confirmed functional
-4. Bi-directional sync foundation established
+```python
+# Change default port
+PORT = 8788  # Change from 8787
 
-## 🌟 Future Vision: Calculation Ecosystem
+# Add custom endpoints
+def do_GET(self):
+    elif self.path == "/custom/endpoint":
+        # Your custom functionality
+        pass
+```
 
-### Calculation Marketplace
-- **Community Calculations**: Shared, verified engineering calculations
-- **Domain Expertise**: Thermal, structural, fluid, electrical specialists
-- **Plug-and-Play Engineering**: Compose solutions from proven calculations
-- **Quality Assurance**: Peer-reviewed calculations with unit validation
+### Testing API Endpoints
+```bash
+# Test all endpoints
+curl http://127.0.0.1:8787/calcslive/status
+curl http://127.0.0.1:8787/calcslive/export
+curl http://127.0.0.1:8787/calcslive/mapping
+curl http://127.0.0.1:8787/calcslive/clean-units
 
-### Professional Workflows
-- **Design-Analysis Loops**: Geometry changes → instant analysis updates
-- **Multi-Physics Integration**: Coupled thermal-structural-fluid analyses
-- **Optimization Workflows**: Parameter sweeps with live geometry updates
-- **Regulatory Compliance**: Calculations with built-in safety factors and codes
-
-### Collaborative Engineering
-- **Remote Team Integration**: Global teams work on same model + calculations
-- **Version Control**: Track calculation evolution with model changes
-- **Knowledge Preservation**: Company calculation libraries and best practices
-- **Training & Education**: Learn engineering through interactive calculation examples
-
-## Related Projects
-
-- **Main CalcsLive**: [CalcsLive Platform](https://github.com/yourusername/calcslive) - Main calculation platform
-- **Google Sheets Integration**: calcslive-plug-4-google-sheets - Predecessor integration project
-- **n8n Integration**: Built-in n8n API support for workflow automation
+# Test POST endpoints
+curl -X POST http://127.0.0.1:8787/calcslive/import \
+  -H "Content-Type: application/json" \
+  -d '{"updates": []}'
+```
 
 ## Requirements
 
 - **FreeCAD 1.0+**: Tested with FreeCAD 1.0.2
 - **Python 3.8+**: Standard FreeCAD Python environment
-- **CalcsLive Server**: Local or remote CalcsLive instance
-- **Web Browser**: For CalcsLive web interface access
+- **Network Access**: HTTP server uses localhost:8787
+- **VarSet Objects**: FreeCAD models with VarSet parameters with label PQs.
+
+## Related Projects
+
+- **Original CalcsLive Workbench**: Full-featured FreeCAD workbench with UI
+- **CalcsLive Platform**: Main calculation platform and web interface
+- **FC_CL_Bridge.FCMacro**: Original macro implementation (legacy)
+
+## Migration from Original Workbench
+
+If you're upgrading from the original CalcsLiveWorkbench:
+
+1. **API Compatibility**: All endpoints work identically
+2. **Auto-start**: No more manual macro execution needed
+3. **Enhanced Status**: Better monitoring and error reporting
+4. **Clean Shutdown**: Proper server lifecycle management
 
 ## License
 
-This workbench is part of the CalcsLive ecosystem and follows the same licensing terms as the main CalcsLive project.
+This addon is part of the CalcsLive ecosystem and follows the same licensing terms as the main CalcsLive project.
 
 ## Support
 
 For issues and support:
-1. Check the CalcsLive documentation
-2. Open issues on the main CalcsLive repository
-3. Join the CalcsLive community discussions
+1. Check FreeCAD Report View for `[CalcsLivePlug]` messages
+2. Test endpoint availability: `http://127.0.0.1:8787/calcslive/status`
+3. Open issues on the CalcsLive repository
+4. Join the CalcsLive community discussions
 
 ---
 
-**Status**: ✅ **Functional Milestone** - All 4 commands working, parameter extraction successful, ready for bi-directional sync development.
+**Status**: ✅ **Production Ready** - Auto-start HTTP server with complete API compatibility, ready for web dashboard integration.
