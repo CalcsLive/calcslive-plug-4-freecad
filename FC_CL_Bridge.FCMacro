@@ -27,7 +27,7 @@ except Exception as e:
     raise RuntimeError("This macro must be run inside FreeCAD.") from e
 
 HOST = "127.0.0.1"
-PORT = 8787
+PORT = 8788
 
 # -----------------------------
 # Bridge Object Management
@@ -101,7 +101,7 @@ def get_pq_mappings(doc=None):
         "articleId": None,
         "articleTitle": None,
         "lastUpdated": None,
-        "paramMappings": {}
+        "pqMappings": {}
     }
 
 
@@ -675,7 +675,6 @@ def main():
     print(f"  POST http://{HOST}:{PORT}/calcslive/import       (update VarSet values)")
     print(f"  GET  http://{HOST}:{PORT}/calcslive/mapping      (get PQ mappings)")
     print(f"  POST http://{HOST}:{PORT}/calcslive/mapping      (save PQ mappings)")
-    print(f"  POST http://{HOST}:{PORT}/calcslive/article-meta (set ArticleID/Title)")
 
 if __name__ == "__main__":
     main()

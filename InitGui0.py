@@ -84,6 +84,7 @@ class CalcsLiveWorkbench(FreeCADGui.Workbench):
         return []
 
 
-# Register the workbench (Draft pattern)
-print("Registering CalcsLive workbench (final official pattern)...")
-FreeCADGui.addWorkbench(CalcsLiveWorkbench())
+# Register the workbench (Draft pattern) - DISABLED for CalcsLive addon
+# print("Registering CalcsLive workbench (final official pattern)...")
+# FreeCADGui.addWorkbench(CalcsLiveWorkbench())
+print("CalcsLiveWorkbench disabled - using CalcsLive addon instead")
