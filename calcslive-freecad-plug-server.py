@@ -173,10 +173,12 @@ def export_payload(doc=None):
                     kind = prop_type.split("Property")[1]
 
                 # Enhanced data structure matching varset_data_extractor.py
+                # Note: "label" is the clean parameter name (e.g., "L", "W", "H") used for dashboard and mappings
+                #       "name" is the full FreeCAD property name (e.g., "Base_L", "Base_W") used internally
                 result["params"].append({
-                    "path": f"{varset.Name}:{varset.Label}/{prop_name}",  # Enhanced path format
-                    "label": prop_label,                                 # Clean label extraction
-                    "name": prop_name,                                   # Full property name
+                    "path": f"{varset.Name}:{varset.Label}/{prop_name}",  # Enhanced path format (internal name)
+                    "label": prop_label,                                 # Clean label (e.g., "L", "W", "H") - USE FOR MAPPINGS
+                    "name": prop_name,                                   # Full property name (e.g., "Base_L") - FreeCAD internal
                     "expr": expr,                                        # Expression if calculated
                     "readonly": readonly,                                # Based on expression
                     "value_si": value_si,                               # SI base value
@@ -200,9 +202,9 @@ def export_payload(doc=None):
             else:
                 # Plain numbers - enhanced format matching varset_data_extractor.py
                 result["params"].append({
-                    "path": f"{varset.Name}:{varset.Label}/{prop_name}",  # Enhanced path format
-                    "label": prop_label,                                 # Clean label extraction
-                    "name": prop_name,                                   # Full property name
+                    "path": f"{varset.Name}:{varset.Label}/{prop_name}",  # Enhanced path format (internal name)
+                    "label": prop_label,                                 # Clean label (e.g., "L", "W", "H") - USE FOR MAPPINGS
+                    "name": prop_name,                                   # Full property name (e.g., "Base_L") - FreeCAD internal
                     "expr": expr,                                        # Expression if calculated
                     "readonly": readonly,                                # Based on expression
                     "value_si": float(prop_str),                        # SI base value
