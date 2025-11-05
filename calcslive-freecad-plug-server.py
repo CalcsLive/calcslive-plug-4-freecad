@@ -64,34 +64,25 @@ def export_payload(doc=None):
     except RuntimeError as e:
         return {
             "docName": doc.Label if doc else None,
-            "docFile": getattr(doc, "FileName", None),
+            "filePath": getattr(doc, "FileName", None),
             "params": [],
             "error": str(e)
         }
 
-    # Extract ArticleID and ArticleTitle from CalcsLiveMappings JSON
-    article_id = None
-    article_title = None
-
-    try:
-        # Get CalcsLiveMappings property and parse JSON
-        mappings_json = getattr(varset, 'CalcsLiveMappings', None)
-        if mappings_json:
-            mappings_data = json.loads(mappings_json)
-            # Simplified structure: direct access to articleId/articleTitle
-            article_id = mappings_data.get('articleId')
-            article_title = mappings_data.get('articleTitle')
-    except Exception as e:
-        # If JSON parsing fails, no fallback - simplified structure only
-        print(f"[CalcsLivePlug] Warning: Could not parse CalcsLiveMappings JSON: {e}")
-        article_id = None
-        article_title = None
+    # Extract file name without path for dashboard display
+    file_name = None
+    file_path = getattr(doc, "FileName", None)
+    if file_path:
+        # Extract filename from full path (cross-platform)
+        file_name = file_path.replace('\\', '/').split('/')[-1]
 
     result = {
-        "docName": doc.Label if doc else None,
-        "docFile": getattr(doc, "FileName", None),
-        "articleId": article_id,      # Include ArticleID at top level
-        "articleTitle": article_title, # Include ArticleTitle at top level
+        "docVersion": "0.2",
+        "metadata": {
+            "docName": doc.Label if doc else None,  # Document label, no ext.
+            "fileName": file_name or "Untitled",    # File name with ext. without path
+            "filePath": file_path                   # Full path if needed
+        },
         "params": []
     }
 
@@ -191,7 +182,7 @@ def export_payload(doc=None):
                 })
 
             elif isinstance(prop_str, str):
-                # String properties (ArticleID, etc.) - enhanced format
+                # String properties (ArticleId, etc.) - enhanced format
                 result["params"].append({
                     "path": f"{varset.Name}:{varset.Label}/{prop_name}",
                     "label": prop_name.split("_", 1)[-1],  # Clean label
@@ -438,11 +429,13 @@ def analyze_clean_property_types():
         "App::PropertyArea": {"category": "Area", "base_unit": "mm²", "example_units": ["mm²", "cm²", "m²", "in²", "ft²"]},
         "App::PropertyVolume": {"category": "Volume", "base_unit": "mm³", "example_units": ["mm³", "cm³", "m³", "in³", "ft³", "l"]},
         "App::PropertyMass": {"category": "Mass", "base_unit": "kg", "example_units": ["g", "kg", "lb", "oz"]},
+        
         "App::PropertyAngle": {"category": "Angle", "base_unit": "rad", "example_units": ["rad", "deg", "°"]},
         "App::PropertySpeed": {"category": "Velocity", "base_unit": "mm/s", "example_units": ["mm/s", "m/s", "km/h", "mph", "ft/s"]},
         "App::PropertyAcceleration": {"category": "Acceleration", "base_unit": "mm/s²", "example_units": ["mm/s²", "m/s²", "ft/s²"]},
         "App::PropertyForce": {"category": "Force", "base_unit": "N", "example_units": ["N", "kN", "lbf", "kgf"]},
         "App::PropertyPressure": {"category": "Pressure", "base_unit": "Pa", "example_units": ["Pa", "kPa", "MPa", "bar", "psi"]},
+        
         "App::PropertyDensity": {"category": "Density", "base_unit": "kg/mm³", "example_units": ["kg/m³", "g/cm³", "kg/mm³", "lb/ft³"]},
         "App::PropertyTemperature": {"category": "Temperature", "base_unit": "K", "example_units": ["K", "°C", "°F"]},
         "App::PropertyTime": {"category": "Time", "base_unit": "s", "example_units": ["s"]},
