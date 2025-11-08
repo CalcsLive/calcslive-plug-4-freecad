@@ -1,46 +1,74 @@
-# CalcsLive Plug for FreeCAD
+# CalcsLive-FreeCAD Bridge
 
-**Auto-starting HTTP server plug for seamless CalcsLive integration with FreeCAD parametric models.**
+**HTTP server bridge enabling Engineering-Driven Modeling (EDM) for FreeCAD through unit-aware calculations.**
 
-## Overview
+> **Repository**: `calcslive-plug-4-freecad`
+> **Component**: CalcsLive-FreeCAD Bridge (server component)
+> **Main Product**: [CalcsLive Plug for FreeCAD](https://www.calcs.live/help/freecad-integration)
 
-CalcsLivePlug provides a **plug interface** for CalcsLive calculation capability in FreeCAD. It automatically starts an HTTP server when FreeCAD loads, enabling **real-time bi-directional synchronization** between FreeCAD parametric models and CalcsLive's **composable, unit-aware engineering calculations**.
+## 🎯 What is Engineering-Driven Modeling?
 
-### 🔌 Plug Architecture
+Engineering-Driven Modeling (EDM) is a **bidirectional workflow** where engineering calculations and CAD geometry work together iteratively.
 
-The "plug" concept means CalcsLive calculation capability is **plugged into** FreeCAD through a lightweight HTTP interface:
+**Traditional CAD**: Draw → Calculate → Redraw (one-way, manual)
 
-- **Auto-start**: HTTP server starts automatically when FreeCAD loads
-- **Always available**: Web dashboards can connect instantly without manual setup
-- **Background operation**: Runs silently in the background until needed
-- **Manual controls**: Plug In/Unplug CalcsLive capability as needed
+**EDM Bidirectional Flow**:
+- **Engineering → Geometry**: Calculations drive optimal design parameters
+- **Geometry → Engineering**: Model changes validate against requirements
+- **Iterative Loop**: Refine both until design converges
 
-### 🧩 Composable Engineering Calculations
+CalcsLive-FreeCAD Bridge enables EDM by connecting FreeCAD with unit-aware cloud calculations - like Autodesk Inventor's Parameters Manager (f(x)), but with **true unit awareness and versatile calculation capabilities** that enable bidirectional engineering validation.
 
-Connect your FreeCAD models to **multiple specialized calculations**, all unit-aware and live-connected:
+## 🌉 What is the Bridge?
+
+CalcsLive-FreeCAD Bridge is the **server component** of CalcsLive Plug for FreeCAD. It runs an HTTP server inside FreeCAD, exposing your model parameters via REST API for seamless integration with the CalcsLive Plug dashboard.
+
+### Architecture Overview
 
 ```
-Complex FreeCAD Model
-    ├── Structural Analysis → stress, deflection, safety factors
-    ├── Thermal Analysis → heat transfer, thermal expansion
-    ├── Fluid Dynamics → pressure drop, flow rates
-    ├── Materials Selection → properties, costs, availability
-    └── Manufacturing → tolerances, machining parameters
+┌──────────────────────────────────────────────────────────────────────┐
+│                    CalcsLive Plug for FreeCAD                        │
+│                                                                      │
+│  FreeCAD Model          CalcsLive-FreeCAD         CalcsLive Plug   │
+│  with VarSet       ⟷         Bridge          ⟷    Dashboard        │
+│  Parameters             (This Component)         (Web Interface)    │
+│                       HTTP Server @ :8787                           │
+│                                                                      │
+│                                                 ⟷  CalcsLive        │
+│                                                    Calculation       │
+│                                                    Articles          │
+└──────────────────────────────────────────────────────────────────────┘
 ```
 
-Each calculation is **independently maintained**, **reusable across projects**, and **automatically unit-converted**.
+**The Bridge serves as**:
+- 🔌 Connection layer between FreeCAD and the web-based dashboard
+- 📡 HTTP server exposing VarSet data via REST API
+- 🔄 Bidirectional data synchronization endpoint
+- 🎯 Single source of truth: FreeCAD model parameters
+
+**For the complete system**, see:
+- 📚 **[CalcsLive Plug for FreeCAD Integration Guide](https://www.calcs.live/help/freecad-integration)** - Full product documentation
+- 🌐 **[CalcsLive Plug Dashboard](https://www.calcs.live/freecad/dashboard)** - Web interface (requires Bridge installed)
+
+---
 
 ## Features
 
 ### ✅ **Auto-Start HTTP Server**
 - Automatically starts when FreeCAD loads
 - No manual macro execution required
-- Ready for web dashboard connections
+- Ready for dashboard connections immediately
 
-### ✅ **Complete API Compatibility**
-- **100% feature parity** with original FC_CL_Bridge.FCMacro
-- All original endpoints: export, import, mapping, clean-units
-- Enhanced with plug status monitoring
+### ✅ **Complete REST API**
+- Export VarSet parameters with full metadata
+- Import updated values from CalcsLive calculations
+- Manage parameter mappings
+- Unit validation and conversion support
+
+### ✅ **Smart Parameter Detection**
+- Handles VarSet parameters with and without group prefixes
+- Works with names containing underscores (`outer_dia`, `material_density`)
+- Supports both legacy (prefix ON) and modern (prefix OFF) workflows
 
 ### ✅ **Manual Controls**
 - **Plug In CalcsLive** - Start HTTP server manually
@@ -52,259 +80,359 @@ Each calculation is **independently maintained**, **reusable across projects**, 
 - Port availability checking
 - Error handling and status reporting
 
+---
+
 ## Installation
 
-1. **Copy the entire `CalcsLivePlug` folder** to your FreeCAD Mod directory:
-   - **Windows**: `C:\\Users\\[username]\\AppData\\Roaming\\FreeCAD\\Mod\\`
-   - **macOS**: `~/Library/Application Support/FreeCAD/Mod/`
-   - **Linux**: `~/.local/share/FreeCAD/Mod/`
+### Option 1: FreeCAD Addon Manager (Coming Soon)
+
+1. Open FreeCAD
+2. Go to **Tools → Addon Manager**
+3. Search for "CalcsLive"
+4. Click **Install**
+5. Restart FreeCAD
+
+### Option 2: Manual Installation
+
+1. **Download or clone this repository**:
+   ```bash
+   cd "C:\Users\[username]\AppData\Roaming\FreeCAD\Mod"
+   # Or on macOS: ~/Library/Application Support/FreeCAD/Mod/
+   # Or on Linux: ~/.local/share/FreeCAD/Mod/
+
+   git clone https://github.com/CalcsLive/calcslive-plug-4-freecad.git CalcsLivePlug
+   ```
 
 2. **Restart FreeCAD**
 
-3. **Verify auto-start**: Check FreeCAD Report View for:
+3. **Verify auto-start** - Check FreeCAD Report View for:
    ```
    [CalcsLivePlug] ✓ CalcsLive plugged in successfully!
    [CalcsLivePlug] HTTP endpoints are now available
    ```
 
-4. **Test the connection**: Visit `http://127.0.0.1:8787/calcslive/status`
+4. **Test the connection**:
+   ```bash
+   curl http://127.0.0.1:8787/calcslive/status
+   ```
+
+---
+
+## Quick Start
+
+### 1. Prepare Your FreeCAD Model
+
+Create a VarSet object labeled **"PQs"** (case-sensitive):
+
+```
+1. Switch to Spreadsheet workbench
+2. Create new VarSet: Insert → VarSet
+3. Set Label to "PQs"
+4. Add properties with prefix OFF for clean expressions:
+   - Group: Base
+   - Name: L, W, H, etc.
+   - ☐ Uncheck "Prefix group name" ← Recommended!
+```
+
+**Why prefix OFF?** Clean expressions like `PQs.L` instead of `PQs.Base_L`
+
+### 2. Verify Bridge is Running
+
+The bridge starts automatically when FreeCAD loads. Verify:
+
+```bash
+curl http://127.0.0.1:8787/calcslive/status
+```
+
+Expected response:
+```json
+{
+  "status": "CalcsLive Plug is running",
+  "version": "0.2",
+  "endpoints": ["/export", "/import", "/mapping", "/clean-units", "/status"]
+}
+```
+
+### 3. Open CalcsLive Plug Dashboard
+
+Visit: **[https://www.calcs.live/freecad/dashboard](https://www.calcs.live/freecad/dashboard)**
+
+The dashboard will automatically detect your running Bridge and load your VarSet parameters!
+
+---
+
+## API Endpoints
+
+The Bridge provides **6 REST endpoints** for complete CalcsLive integration:
+
+### **Data Exchange**
+
+**GET `/calcslive/export`** - Export VarSet parameters with full metadata
+```bash
+curl http://127.0.0.1:8787/calcslive/export
+```
+
+Response includes:
+- All VarSet "PQs" parameters
+- SI base values and units
+- Display values and user-preferred units
+- Parameter roles (input/output)
+- Quantity kinds (Length, Mass, Volume, etc.)
+- Existing CalcsLive mappings
+
+**POST `/calcslive/import`** - Update VarSet parameters from CalcsLive
+```bash
+curl -X POST http://127.0.0.1:8787/calcslive/import \
+  -H "Content-Type: application/json" \
+  -d '{"updates": [{"path": "VarSet:PQs/L", "value": 1500, "unit": "mm"}]}'
+```
+
+### **Mapping Management**
+
+**GET `/calcslive/mapping`** - Get parameter mapping configuration
+```bash
+curl http://127.0.0.1:8787/calcslive/mapping
+```
+
+**POST `/calcslive/mapping`** - Save parameter mapping configuration
+```bash
+curl -X POST http://127.0.0.1:8787/calcslive/mapping \
+  -H "Content-Type: application/json" \
+  -d '{"articleId": "abc123", "mappings": {...}}'
+```
+
+### **System Information**
+
+**GET `/calcslive/clean-units`** - Get clean units data for validation
+
+**GET `/calcslive/status`** - Check Bridge status and available endpoints
+
+---
 
 ## Usage
 
 ### Automatic Operation (Recommended)
 
-The plug **auto-starts when FreeCAD loads** - no user action required!
+The Bridge **auto-starts when FreeCAD loads** - no user action required!
 
-1. **Open FreeCAD** with a model containing VarSet parameters labelled PQs
-2. **HTTP server is automatically available** at `http://127.0.0.1:8787`
-3. **Connect your CalcsLive dashboard** to the running server
-4. **Parameters sync automatically** between FreeCAD and CalcsLive
+**Workflow**:
+1. Open FreeCAD with a model containing VarSet labeled "PQs"
+2. HTTP server is automatically available at `http://127.0.0.1:8787`
+3. Open [CalcsLive Plug Dashboard](https://www.calcs.live/freecad/dashboard)
+4. Map VarSet parameters to CalcsLive calculations
+5. Synchronize data bidirectionally
 
 ### Manual Controls
 
-Switch to the **"CalcsLive Plug"** workbench for manual control:
+Switch to **"CalcsLive Plug"** workbench for manual control:
 
-| Command | Description |
-|---------|-------------|
-| **Plug In CalcsLive** | Start HTTP server manually |
-| **Unplug CalcsLive** | Stop HTTP server cleanly |
-| **Plug Status** | Check server status and functionality |
+| Command | Description | When to Use |
+|---------|-------------|-------------|
+| **Plug In CalcsLive** | Start HTTP server | If auto-start failed |
+| **Unplug CalcsLive** | Stop HTTP server | Before closing FreeCAD |
+| **Plug Status** | Check server status | Troubleshooting connection |
 
-## API Endpoints
+---
 
-The CalcsLivePlug HTTP server provides **6 endpoints** for complete CalcsLive integration:
+## Opinionated Workflow: Prefix OFF
 
-### **Data Exchange**
-- `GET /calcslive/export` - Export VarSet parameters with full metadata
-- `POST /calcslive/import` - Update VarSet parameters from CalcsLive
+**Recommended**: Create VarSet parameters with **prefix OFF** for the cleanest workflow.
 
-### **Mapping Management**
-- `GET /calcslive/mapping` - Get parameter mapping configuration
-- `POST /calcslive/mapping` - Save parameter mapping configuration
+### Why Prefix OFF?
 
-### **System Information**
-- `GET /calcslive/clean-units` - Get clean units data for validation
-- `GET /calcslive/status` - Check plug status and available endpoints
-
-### **Example Usage**
-
-```bash
-# Check if plug is running
-curl http://127.0.0.1:8787/calcslive/status
-
-# Export current model parameters
-curl http://127.0.0.1:8787/calcslive/export
-
-# Get available units for validation
-curl http://127.0.0.1:8787/calcslive/clean-units
+```
+✅ Consistent Naming: param.name === param.label everywhere
+✅ Clean Expressions: PQs.L instead of PQs.Base_L
+✅ Professional UX: Matches CalcsLive symbol naming
+✅ Robust: Works correctly with underscores (outer_dia, material_density)
 ```
 
-## Architecture
+### VarSet Parameter Creation
 
-### **Plug Design Philosophy**
-- **Minimal footprint**: Lightweight HTTP server with essential functionality
-- **Auto-start capability**: No manual intervention required
-- **Proper lifecycle**: Clean startup, shutdown, and error handling
-- **Status monitoring**: Always know if the plug is working
+**When adding properties to VarSet "PQs"**:
+```
+Type: App::PropertyLength (or appropriate)
+Group: Base
+Name: L (or outer_dia, MaterialDensity, etc.)
+☐ Prefix group name ← UNCHECK THIS BOX
+```
 
-### **Key Components**
+**Result**:
+- Internal name: `L` (no prefix)
+- Dashboard shows: `L`
+- Expression: `PQs.L` or `<<PQs>>.L` (clean!)
+
+**FreeCAD Expression Usage**:
+```python
+# In your model features, reference VarSet parameters:
+Box.Length = PQs.L
+Cylinder.Radius = PQs.outer_dia / 2
+Pad.Length = PQs.MaterialDensity * PQs.Volume
+```
+
+### Backward Compatibility
+
+The Bridge **still works** with prefix ON parameters (legacy models):
+- `Base_L` → Dashboard shows `L` (label)
+- Expression: `PQs.Base_L` (with prefix)
+
+But **new parameters should use prefix OFF** for best experience.
+
+---
+
+## Architecture Details
+
+### Component Roles
+
+**CalcsLive-FreeCAD Bridge** (This Repository):
+- FreeCAD addon (installed in Mod folder)
+- HTTP server on localhost:8787
+- Exposes VarSet data via REST API
+- Manages bidirectional data sync
+
+**CalcsLive Plug Dashboard** (Web Interface):
+- Browser-based at calcs.live/freecad/dashboard
+- Maps VarSet parameters to CalcsLive calculations
+- Provides drag-and-drop mapping interface
+- Handles unit conversion and synchronization
+
+### Data Flow
+
+```
+1. Export: FreeCAD VarSet → Bridge API → Dashboard → CalcsLive Calculations
+2. Calculate: CalcsLive performs unit-aware calculations
+3. Sync: CalcsLive Results → Dashboard → Bridge API → FreeCAD VarSet
+4. Update: FreeCAD model recomputes with new values
+```
+
+**Key Principle**: FreeCAD VarSet remains the **single source of truth** for live parameter values.
+
+### Key Components
 
 - **`InitGui.py`**: Auto-start initialization and workbench registration
-- **`calcslive-freecad-plug-server.py`**: Complete HTTP server with all endpoints
+- **`calcslive-freecad-plug-server.py`**: HTTP server with all REST endpoints
 - **`package.xml`**: Addon metadata for FreeCAD addon manager
-- **`__init__.py`**: Basic addon initialization
 
-### **Differences from Original Workbench**
-
-| Aspect | Original Workbench | New CalcsLivePlug |
-|--------|-------------------|-------------------|
-| **Startup** | Manual macro execution | Automatic server start |
-| **UI** | Full workbench with commands | Minimal plug controls |
-| **Focus** | User interface and workflows | Background HTTP API |
-| **Scope** | Complete FreeCAD integration | Focused server functionality |
-
-## Comprehensive Workbench Integration Examples
-
-### 🛩️ Aircraft Wing Design (Part Design + FEA + CAM)
-```
-FreeCAD Wing Model (wing-section.FCStd) + CalcsLivePlug
-    ├── Aerodynamics Calc → lift, drag, pressure distribution
-    ├── Structural FEA → stress analysis, deflection, safety factors
-    ├── Weight & Balance → mass properties, CG location
-    └── Manufacturing CAM → tooling requirements, machining strategies
-```
-
-### 🏗️ Building Design (Arch + Draft + Structure)
-```
-FreeCAD Building Model (office-building.FCStd) + CalcsLivePlug
-    ├── Energy Analysis → thermal loads, HVAC sizing
-    ├── Structural Design → beam sizing, foundation loads
-    ├── Building Physics → daylighting, acoustics, fire safety
-    └── Construction Sequencing → scheduling, material takeoffs
-```
-
-### ⚙️ Mechanical Assembly (Assembly + Motion + FEA)
-```
-FreeCAD Robot Assembly (6-axis-robot.FCStd) + CalcsLivePlug
-    ├── Kinematic Analysis → workspace, singularities
-    ├── Dynamic Simulation → torque requirements, acceleration limits
-    ├── Structural FEA → deflection under load, resonance analysis
-    └── Servo Sizing → motor selection, gear ratios, power consumption
-```
-
-## Benefits of the Plug Architecture
-
-### 🚀 **Always Ready**
-- HTTP server starts with FreeCAD automatically
-- Web dashboards can connect instantly
-- No workflow interruption for manual setup
-
-### 🔧 **Lightweight Integration**
-- Minimal impact on FreeCAD startup time
-- Background operation until needed
-- Clean resource management
-
-### 🌐 **Web-First Design**
-- Optimized for modern web dashboard integration
-- RESTful API following web standards
-- CORS support for browser applications
-
-### 🔄 **Reliable Operation**
-- Proper server lifecycle management
-- Error handling and status reporting
-- Clean shutdown with port cleanup
-
-## Revolutionary Impact on FreeCAD Ecosystem
-
-### Transforming Every Workbench
-CalcsLivePlug **amplifies every FreeCAD workbench** with unit-aware calculation capability:
-
-| FreeCAD Workbench | CalcsLive Enhancement | Impact |
-|-------------------|----------------------|---------|
-| **Part Design** | Live stress/thermal analysis | Design optimization during modeling |
-| **Assembly** | Motion dynamics, interference | Real-time kinematic validation |
-| **Arch** | Building physics, energy | Integrated architectural engineering |
-| **CAM** | Cutting forces, tool life | Optimized manufacturing strategies |
-| **Ship** | Naval architecture calcs | Professional vessel design |
-| **FEA** | Parametric studies | Mesh-independent optimization |
-
-### Cross-Workbench Workflows
-**Unprecedented integration** between traditionally separate domains:
-- **CAD → CAE → CAM**: Design → Analysis → Manufacturing in one environment
-- **Architecture → Structure → MEP**: Building design with integrated systems
-- **Naval → Structural → Manufacturing**: Ship design through production
-- **Robotics → Controls → Manufacturing**: Mechatronic system development
+---
 
 ## Troubleshooting
 
-### Common Issues
+### Bridge Not Starting
 
-**Server not starting:**
-```bash
-# Check FreeCAD Report View for error messages
-# Look for [CalcsLivePlug] messages
-
-# Verify port is available
-curl http://127.0.0.1:8787/calcslive/status
+**Check FreeCAD Report View** for `[CalcsLivePlug]` messages:
+```
+[CalcsLivePlug] ✓ CalcsLive plugged in successfully!  ← Good
+[CalcsLivePlug] ✗ Failed to start server: ...          ← Error
 ```
 
-**Port already in use:**
+**Verify port availability**:
 ```bash
-# Check what's using port 8787
+# Check if port 8787 is in use
 netstat -an | findstr 8787
 
-# Use "Unplug CalcsLive" then "Plug In CalcsLive" to restart
+# If in use, restart Bridge:
+# Use "Unplug CalcsLive" then "Plug In CalcsLive"
 ```
 
-**Can't connect from browser:**
-- Verify FreeCAD is running with a document open
-- Check Windows Firewall settings for port 8787
-- Try `http://localhost:8787/calcslive/status` instead
+### Dashboard Can't Connect
 
-## Development
+**Checklist**:
+- [ ] FreeCAD is running
+- [ ] A document is open (active document required)
+- [ ] VarSet labeled "PQs" exists in model
+- [ ] Bridge status shows running: `curl http://127.0.0.1:8787/calcslive/status`
+- [ ] Windows Firewall allows localhost:8787
 
-### Server Customization
-The server implementation in `calcslive-freecad-plug-server.py` can be customized:
-
-```python
-# Change default port
-PORT = 8788  # Change from 8787
-
-# Add custom endpoints
-def do_GET(self):
-    elif self.path == "/custom/endpoint":
-        # Your custom functionality
-        pass
-```
-
-### Testing API Endpoints
+**Test connection**:
 ```bash
-# Test all endpoints
-curl http://127.0.0.1:8787/calcslive/status
 curl http://127.0.0.1:8787/calcslive/export
-curl http://127.0.0.1:8787/calcslive/mapping
-curl http://127.0.0.1:8787/calcslive/clean-units
-
-# Test POST endpoints
-curl -X POST http://127.0.0.1:8787/calcslive/import \
-  -H "Content-Type: application/json" \
-  -d '{"updates": []}'
+# Should return JSON with VarSet parameters
 ```
+
+### No VarSet "PQs" Detected
+
+**Error**: Dashboard shows "VarSet 'PQs' Not Found"
+
+**Solution**:
+1. Create VarSet object in FreeCAD
+2. Set Label to "PQs" (case-sensitive!)
+3. Add at least one parameter with prefix OFF
+4. Refresh dashboard (click "Reload 3D Model Data")
+
+---
 
 ## Requirements
 
 - **FreeCAD 1.0+**: Tested with FreeCAD 1.0.2
 - **Python 3.8+**: Standard FreeCAD Python environment
 - **Network Access**: HTTP server uses localhost:8787
-- **VarSet Objects**: FreeCAD models with VarSet parameters with label PQs.
+- **VarSet Objects**: FreeCAD models with VarSet labeled "PQs"
 
-## Related Projects
+---
 
-- **Original CalcsLive Workbench**: Full-featured FreeCAD workbench with UI
-- **CalcsLive Platform**: Main calculation platform and web interface
-- **FC_CL_Bridge.FCMacro**: Original macro implementation (legacy)
+## Related Documentation
 
-## Migration from Original Workbench
+### CalcsLive Plug for FreeCAD (Main Product)
+- 📚 **[Integration Guide](https://www.calcs.live/help/freecad-integration)** - Complete documentation
+- 🌐 **[Dashboard](https://www.calcs.live/freecad/dashboard)** - Web interface
+- 🎓 **Tutorials** - Step-by-step guides
+- 🔧 **Troubleshooting** - Common issues and solutions
 
-If you're upgrading from the original CalcsLiveWorkbench:
+### CalcsLive Platform
+- 🧮 **[CalcsLive](https://www.calcs.live)** - Main calculation platform
+- 📖 **[Documentation](https://www.calcs.live/help)** - Platform guides
+- 🔌 **CalcsLive Plug Series** - Google Sheets, n8n, FreeCAD
 
-1. **API Compatibility**: All endpoints work identically
-2. **Auto-start**: No more manual macro execution needed
-3. **Enhanced Status**: Better monitoring and error reporting
-4. **Clean Shutdown**: Proper server lifecycle management
+---
+
+## Recent Changes
+
+### v0.2 (2025-11-05)
+
+**Enhanced Parameter Detection**:
+- ✅ Smart group-aware prefix detection using `getGroupOfProperty()`
+- ✅ Handles parameter names with underscores correctly (`outer_dia`, `material_density`)
+- ✅ Supports both prefix ON (legacy) and prefix OFF (recommended) workflows
+- ✅ Backward compatible with existing models
+
+**Command Simplification**:
+- ✅ Disabled unreliable commands (InitializePQs, RenameVarSetParam)
+- ✅ Toolbar reduced to 3 core commands (Plug In, Unplug, Status)
+- ✅ Manual VarSet creation provides better control
+
+**Bug Fixes**:
+- 🐛 Fixed parameter names with underscores being incorrectly split
+- 🐛 Example: `outer_dia` now correctly returns `outer_dia`, not `dia`
+
+---
+
+## Contributing
+
+Contributions welcome! Please:
+1. Test with FreeCAD 1.0.2+
+2. Ensure backward compatibility
+3. Update documentation
+4. Include test cases
+
+---
 
 ## License
 
 This addon is part of the CalcsLive ecosystem and follows the same licensing terms as the main CalcsLive project.
 
+---
+
 ## Support
 
-For issues and support:
+**Need help?**
 1. Check FreeCAD Report View for `[CalcsLivePlug]` messages
-2. Test endpoint availability: `http://127.0.0.1:8787/calcslive/status`
-3. Open issues on the CalcsLive repository
-4. Join the CalcsLive community discussions
+2. Test endpoint: `http://127.0.0.1:8787/calcslive/status`
+3. Read the [Integration Guide](https://www.calcs.live/help/freecad-integration)
+4. Open issues on [GitHub](https://github.com/CalcsLive/calcslive-plug-4-freecad/issues)
 
 ---
 
-**Status**: ✅ **Production Ready** - Auto-start HTTP server with complete API compatibility, ready for web dashboard integration.
+**Status**: ✅ **Production Ready**
+**Version**: 0.2
+**Role**: Server component of CalcsLive Plug for FreeCAD
+**Dashboard**: [calcs.live/freecad/dashboard](https://www.calcs.live/freecad/dashboard)
