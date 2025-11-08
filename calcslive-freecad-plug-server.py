@@ -112,8 +112,15 @@ def export_payload(doc=None):
             # Determine readonly: if it has an expression, it's likely read-only
             readonly = bool(expr)
 
-            # Get property label (enhanced from varset_data_extractor.py)
-            prop_label = prop_name.split("_", 1)[-1]  # Splits on first underscore
+            # Get property label - strip group prefix if it exists
+            # Supports both prefix ON (Base_L) and prefix OFF (L) workflows
+            prop_label = prop_name
+            if hasattr(varset, "getGroupOfProperty"):
+                group = varset.getGroupOfProperty(prop_name)
+                if group and prop_name.startswith(f"{group}_"):
+                    # Prefix ON: "Base_outer_dia" with group="Base" → "outer_dia"
+                    prop_label = prop_name[len(group) + 1:]
+                # else: Prefix OFF: "outer_dia" → "outer_dia" (no change)
 
             # Extract SI value and display units (working pattern)
             if hasattr(prop_str, 'Value'):  # Quantity
