@@ -80,6 +80,34 @@ CalcsLive-FreeCAD Bridge is the **server component** of CalcsLive Plug for FreeC
 - Port availability checking
 - Error handling and status reporting
 
+### ✅ **Zero Vendor Lock-in**
+
+**Your FreeCAD models remain pure FreeCAD files. Always.**
+
+**With CalcsLive Plug**:
+- ✨ Unit-aware calculations across 64+ unit categories
+- ✨ Cloud calculation library (reusable engineering logic)
+- ✨ Real-time design exploration (drag sliders, watch model adapt)
+- ✨ Engineering validation (ASME, AISC codes)
+- ✨ Bidirectional sync (requirements ⟷ geometry)
+
+**Without CalcsLive Plug**:
+- ✅ Models open normally in FreeCAD
+- ✅ VarSet parameters work (native FreeCAD feature)
+- ✅ Geometry updates when you change values
+- ✅ Expressions evaluate correctly
+- ✅ Share with users who don't have the Plug
+- ✅ No data loss, no vendor lock-in
+
+**How It Works**:
+- CalcsLive Plug stores only lightweight metadata in a VarSet property
+- If the Plug is removed, this metadata is harmlessly ignored
+- Your model continues to work perfectly with native FreeCAD VarSet functionality
+- **You are NEVER locked in**
+
+**Stop paying? Uninstall? Change your mind?**
+**Your models are ALWAYS yours.** 🛡️
+
 ---
 
 ## Installation
