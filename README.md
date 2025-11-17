@@ -26,18 +26,15 @@ CalcsLive-FreeCAD Bridge is the **server component** of CalcsLive Plug for FreeC
 ### Architecture Overview
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                    CalcsLive Plug for FreeCAD                        │
-│                                                                      │
-│  FreeCAD Model          CalcsLive-FreeCAD         CalcsLive Plug     │
-│  with VarSet       ⟷         Bridge          ⟷    Dashboard        │
-│  Parameters             (This Component)         (Web Interface)     │
-│                       HTTP Server @ :8787                            │
-│                                                                      │
-│                                                 ⟷  CalcsLive        │
-│                                                    Calculation       │
-│                                                    Articles          │
-└──────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    CalcsLive Plug for FreeCAD                           │
+│                                                                         │
+│  FreeCAD Model   CalcsLive-FreeCAD    CalcsLive Plug       CalcsLive    │
+│  with VarSet  ⟷       Bridge     ⟷   Dashboard      ⟷  Calculation   │
+│  Parameters       (This Component)    (Web Interface)      Articles     |
+│                  HTTP Server @ :8787                                    │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
 **The Bridge serves as**:
