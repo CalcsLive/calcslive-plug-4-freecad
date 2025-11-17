@@ -17,7 +17,7 @@ Engineering-Driven Modeling (EDM) is a **bidirectional workflow** where engineer
 - **Geometry → Engineering**: Model changes validate against requirements
 - **Iterative Loop**: Refine both until design converges
 
-CalcsLive-FreeCAD Bridge enables EDM by connecting FreeCAD with unit-aware cloud calculations - like Autodesk Inventor's Parameters Manager (f(x)), but with **true unit awareness and versatile calculation capabilities** that enable bidirectional engineering validation.
+CalcsLive-FreeCAD Bridge enables EDM by connecting FreeCAD with unit-aware cloud calculations - like Autodesk Inventor's Parameters Manager (fx), but with **true unit awareness and versatile calculation capabilities** that enable bidirectional engineering validation.
 
 ## 🌉 What is the Bridge?
 
@@ -29,10 +29,10 @@ CalcsLive-FreeCAD Bridge is the **server component** of CalcsLive Plug for FreeC
 ┌──────────────────────────────────────────────────────────────────────┐
 │                    CalcsLive Plug for FreeCAD                        │
 │                                                                      │
-│  FreeCAD Model          CalcsLive-FreeCAD         CalcsLive Plug   │
+│  FreeCAD Model          CalcsLive-FreeCAD         CalcsLive Plug     │
 │  with VarSet       ⟷         Bridge          ⟷    Dashboard        │
-│  Parameters             (This Component)         (Web Interface)    │
-│                       HTTP Server @ :8787                           │
+│  Parameters             (This Component)         (Web Interface)     │
+│                       HTTP Server @ :8787                            │
 │                                                                      │
 │                                                 ⟷  CalcsLive        │
 │                                                    Calculation       │
@@ -446,7 +446,7 @@ Contributions welcome! Please:
 
 ## License
 
-This addon is part of the CalcsLive ecosystem and follows the same licensing terms as the main CalcsLive project.
+See [License](./LICENSE)
 
 ---
 
@@ -461,6 +461,6 @@ This addon is part of the CalcsLive ecosystem and follows the same licensing ter
 ---
 
 **Status**: ✅ **Production Ready**
-**Version**: 0.2
-**Role**: Server component of CalcsLive Plug for FreeCAD
+**Version**: 1.0.1  
+**Role**: Server component of CalcsLive Plug for FreeCAD  
 **Dashboard**: [calcs.live/freecad/dashboard](https://www.calcs.live/freecad/dashboard)
